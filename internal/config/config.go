@@ -15,8 +15,6 @@ type (
 	Config struct {
 		LogLevel string        `mapstructure:"log_level"`
 		Server   *ServerConfig `mapstructure:"server"`
-		MySQL    *MySQLConfig  `mapstructure:"mysql"`
-		Redis    *RedisConfig  `mapstructure:"redis"`
 		App      *AppConfig    `mapstructure:"app"`
 	}
 	AppConfig struct {
@@ -33,36 +31,8 @@ type (
 		GitToken      string `mapstructure:"git_token"`
 	}
 	ServerConfig struct {
-		Host                     string        `mapstructure:"host"`
-		GrpcPort                 uint32        `mapstructure:"grpc_port"`
-		HttpPort                 uint32        `mapstructure:"http_port"`
-		GrpcEnableReflection     bool          `mapstructure:"grpc_enable_reflection"`
-		GracefulShutdownTimeout  time.Duration `mapstructure:"graceful_shutdown_timeout"`
-		ApiSigningKey            string        `mapstructure:"api_signing_key"`
-		ForbiddenCommandRedisTTL time.Duration `mapstructure:"forbidden_command_redis_ttl"`
-	}
-
-	MySQLConfig struct {
-		WriterEndpoint         string        `mapstructure:"writer_endpoint"`
-		ReaderEndpoints        []string      `mapstructure:"reader_endpoints"`
-		TlsConfig              string        `mapstructure:"tls_config"`
-		TlsRootCAFilePath      string        `mapstructure:"tls_root_ca_file_path"` // aws aurora tls root ca file path
-		MaxOpenConns           uint16        `mapstructure:"max_open_conns"`
-		MaxIdleConns           uint16        `mapstructure:"max_idle_conns"`
-		ConnMaxLifetime        time.Duration `mapstructure:"conn_max_lifetime"`
-		SkipDefaultTransaction bool          `mapstructure:"skip_default_transaction"`
-	}
-
-	RedisConfig struct {
-		Addrs           []string      `mapstructure:"addrs"`
-		EnableTLS       bool          `mapstructure:"enable_tls"`
-		Username        string        `mapstructure:"username"`
-		Password        string        `mapstructure:"password"`
-		PoolSize        int           `mapstructure:"pool_size"`
-		MinIdleConns    int           `mapstructure:"min_idle_conns"`
-		MaxIdleConns    int           `mapstructure:"max_idle_conns"`
-		MaxActiveConns  int           `mapstructure:"max_active_conns"`
-		ConnMaxIdleTime time.Duration `mapstructure:"conn_max_idle_time"`
+		HttpPort                uint32        `mapstructure:"http_port"`
+		GracefulShutdownTimeout time.Duration `mapstructure:"graceful_shutdown_timeout"`
 	}
 )
 
@@ -70,22 +40,8 @@ var (
 	defaultConfigYamlString = []byte(`
 log_level: debug
 server:
-  host: 0.0.0.0
-  grpc_port: 8080
-  http_port: 8090
-  grpc_enable_reflection: true
+  http_port: 9091
   graceful_shutdown_timeout: 15s
-  forbidden_command_redis_ttl: 720h
-mysql:
-  max_open_conns: 20
-  max_idle_conns: 20
-  skip_default_transaction: true
-redis:
-  enable_tls: false
-  min_idle_conns: 25
-  max_idle_conns: 50
-  max_active_conns: 50
-  conn_max_idle_time: -1
 `)
 )
 

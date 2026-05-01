@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Go Markdown blog system (`goblog`). Server-rendered web app with an admin backend and a public frontend, using Gin + GORM + MySQL. Follows [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md).
+Go Markdown blog system (`goblog`). Server-rendered web app with an admin backend and a public frontend, using **Gin + a Git-backed file store** (no database). Follows the [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md).
 
 ## Commands
 
@@ -15,13 +15,13 @@ make build
 # Build for macOS arm64
 make mac
 
-# Download dependencies
+# Tidy dependencies
 make tidy
 
 # Format code
 make fmt
 
-# Run locally (requires MySQL)
+# Run locally
 ./goblog -config=./conf/dev.yaml
 
 # Run tests
@@ -38,40 +38,38 @@ make tar
 
 ### Request Flow
 
-`main.go` -> `config.LoadConfig` -> `view.InitTemplates` -> `routers.NewServer` -> `server.InitRouter(gin.Engine)` -> `gin.RunGin` (graceful shutdown)
+`main.go` -> `config.LoadConfig` -> `view.InitTemplates` -> `routers.NewServer` -> `server.InitRouter(gin.Engine)` -> `gin.RunGin` (graceful shutdown).
 
-The Gin engine is initialized in `internal/pkg/gin/gin.go` (CORS, error handling, graceful shutdown via signal). Routes are registered in `internal/routers/router.go`, which wires up all handlers with their repository dependencies.
+The Gin engine is initialized in `internal/pkg/gin/gin.go` (CORS, error handling, graceful shutdown via `signal.NotifyContext`). Routes are wired up in `internal/routers/router.go`, which constructs the file-backed repository and injects it into all handlers.
 
 ### Layer Structure
 
-- **Handlers** (`internal/handler/`) — HTTP handlers split into `admin/` (authenticated CRUD) and `front/` (public-facing pages). Each handler struct receives repository interfaces via constructor injection.
-- **Repository** (`internal/mysql/`) — `GormRepository` implements all repository interfaces (`PostRepository`, `CategoryRepository`, `TagRepository`, `PageRepository`). Each entity's interface and queries live in its own file (e.g., `post.go`, `tag.go`).
-- **Models** (`internal/pkg/model/`) — GORM structs with explicit `TableName()` methods. Post content is stored in a separate `post_content` table.
+- **Handlers** (`internal/handler/`) — HTTP handlers split into `admin/` (authenticated CRUD) and `front/` (public pages). Each handler struct receives repository interfaces via constructor injection.
+- **Repository** (`internal/filestore/`) — `FileRepository` is the single concrete implementation of all repository interfaces (post / category / tag / page / book / user). Data is read once at startup into in-memory slices/maps and protected by `sync.RWMutex`. Mutations are persisted by writing files back into the data directory and (optionally) committing to its git remote.
+- **Models** (`internal/pkg/model/`) — Plain Go structs (`Post`, `Category`, `Tag`, `Page`, `Book`, `User`). The `gorm:` struct tags are vestigial — they are not consumed by any active code, but kept for now to avoid touching every field rename.
 - **Views** (`internal/pkg/view/`) — Go `html/template` rendering with startup-time caching. Call `view.InitTemplates()` before serving. Templates live in `tpl/` with `default/` (frontend), `admin/`, and `intro/` subdirectories.
 
 ### Key Patterns
 
-- **MySQL read/write splitting**: `internal/mysql/mysql.go` configures GORM `dbresolver` with separate writer and reader endpoints from config.
+- **Content storage**: All mutable data lives under `app.data_dir` on disk, organized as Markdown files with YAML frontmatter (see `internal/filestore/frontmatter.go`) plus JSON sidecar files for non-content entities. The directory is initialized by `git clone` of `app.git_repo` (uses `app.git_token` if private). Saves write the file then `git add && git commit && git push` if a git remote is configured.
 - **Post ID**: Posts use UUID v4 (dashes removed) as primary key, stored as string. The `identity` field is a separate URL-friendly slug used in `/posts/:identity` routes.
-- **Tag storage**: Tag IDs are stored as a JSON array in the `tag_ids` column, queried via MySQL `JSON_CONTAINS`.
-- **Config**: Viper-based YAML config with defaults embedded in `internal/config/config.go`. Environment configs in `conf/dev.yaml` and `conf/prod.yaml` (gitignored; use `conf/dev.yaml.example` as template).
-- **Auth**: Admin routes use `gin-contrib/sessions` with signed cookie store via `middleware.AuthWithSession`. Session secret configured in `app.session_secret`.
-- **Cron jobs**: Heatmap data generation runs hourly via `robfig/cron`, writing to `heatmap.txt`.
-- **Feed**: RSS/Atom feed generated at startup via `GetPostsWithContent()` (single JOIN query) and served at `/feed.xml`.
-- **Logging**: Unified on `log/slog` throughout the codebase.
+- **Config**: Viper-based YAML config with defaults embedded in `internal/config/config.go`. Environment configs in `conf/dev.yaml` and `conf/prod.yaml` (both gitignored; use `conf/{dev,prod}.yaml.example` as templates).
+- **Auth**: Admin routes use `gin-contrib/sessions` with signed cookie store via `middleware.AuthWithSession`. Session secret configured in `app.session_secret` (must be a real random value in production).
+- **Cron jobs**: Heatmap data aggregation runs hourly via `robfig/cron`, writing `heatmap.txt`.
+- **Feed**: RSS/Atom generated at startup and served at `/feed.xml`. Sitemap generated at startup and served at `/sitemap.xml`.
+- **Logging**: Unified on `log/slog`. `internal/pkg/slogx/` provides a custom handler with trace ID support.
 - **Graceful shutdown**: `gin.RunGin` uses `http.Server` + `signal.NotifyContext(SIGINT, SIGTERM)`. Timeout configured via `server.graceful_shutdown_timeout`.
 - **Delete operations**: All delete routes use POST method to prevent CSRF via GET.
 
 ### Package Map
 
-- `pkg/` — Reusable libraries (cache, redis, mail, utils, logging, exception handling)
-- `internal/pkg/` — App-specific internals (gin setup, markdown-to-HTML, models, slogx structured logging, view rendering)
-- `internal/pkg/slogx/` — Custom `slog` handler with trace ID support, used by GORM logger
-
-## Database
-
-MySQL 8.0, charset `utf8mb4`. Schema in `blog.sql`. Tables: `post`, `post_content`, `category`, `tag`, `page`, `user`.
+- `pkg/` — Generic libraries (cache, utils, exception handling).
+- `internal/pkg/` — App-specific internals (gin setup, markdown-to-HTML, models, slogx structured logging, view rendering).
 
 ## Server
 
-Port configured via `server.http_port` in YAML config. Health check at `GET /ping`.
+Port configured via `server.http_port`. Health check at `GET /ping`.
+
+## Deployment
+
+Production target is systemd. See `conf/goblog.service` for the unit template and `README.md` for the full deploy walkthrough. There is also a `Dockerfile` for container-based deployment if desired.

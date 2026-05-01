@@ -1,134 +1,144 @@
-## Go Markdown 博客系统
-> 基于 Go 语言实现的 Markdown 博客系统
+# goblog
 
-### 技术栈
+基于 Go 的 Markdown 博客系统：服务端渲染、Git 仓库为内容存储、可一键部署到 systemd。
 
-* 前端框架：[Bootstrap v3.3.7](http://getbootstrap.com)
-* 语言：[go](https://go.dev/)
-* 网络库：标准库 net/http
-* 配置文件解析库 [Viper](https://github.com/spf13/viper)
-* 日志库：[zap](https://github.com/uber-go/zap)
-* 搜索引擎：[elasticsearch](https://github.com/olivere/elastic/v7)
-* 数据库：[mysql](https://github.com/go-sql-driver/mysql)
-* 缓存：[redis](https://github.com/go-redis/redis)
-* 文件存储：阿里云 oss、cdn
-* markdown 编辑器：[markdown editor](https://github.com/pandao/editor.md)
-* pprof 性能调优
-* 包管理工具 [Go Modules](https://github.com/golang/go/wiki/Modules)
-* 评论插件：[gitalk](https://github.com/gitalk/gitalk) 
-* 后台登录：cookie 
-* 使用 make 来管理 Go 工程
-* 使用 shell(startup.sh) 脚本来管理进程
-* 使用 YAML 文件进行多环境配置
+## 特性
 
-### 目录结构
+- **文件存储**：博客内容（文章、分类、标签、页面）以 Markdown 文件形式存放在独立的 Git 仓库中（`blog-data`），运行时按需克隆/拉取，无需数据库。
+- **管理后台**：登录后可对文章、页面、分类、标签做增删改查；admin 操作通过 session cookie 鉴权。
+- **公开前台**：首页、文章页、标签页、分类页、阅读清单、关于页、站内搜索（基于内存索引）。
+- **RSS / Atom**：启动时生成 `/feed.xml`。
+- **Sitemap**：`/sitemap.xml`。
+- **评论**：基于 [utterances](https://utteranc.es/) GitHub Issues 评论组件。
+- **热力图**：每小时定时聚合写入 `heatmap.txt`，用于贡献图展示。
+- **优雅退出**：`SIGTERM` 触发，超时时间可配。
 
-```shell
-├── Makefile                     # 项目管理文件
-├── conf                         # 配置文件统一存放目录
-├── internal                     # 业务目录
-│   ├── handler                  # http 接口
-│   ├── pkg                      # 内部应用程序代码
-│   └── routers                  # 业务路由
-├── logs                         # 存放日志的目录
-├── static                       # 存放静态文件的目录
-├── tpl                          # 存放模板的目录
-├── main.go                      # 项目入口文件
-├── pkg                          # 公共的 package
-├── tests                        # 单元测试
-└── startup.sh                   # 启动脚本
+## 技术栈
+
+| 类别 | 技术 |
+|------|------|
+| 语言 | Go 1.23+ |
+| Web 框架 | [Gin](https://github.com/gin-gonic/gin) |
+| 模板 | `html/template`（启动时缓存）|
+| 配置 | [Viper](https://github.com/spf13/viper) (YAML) |
+| 日志 | `log/slog`（自定义 handler，支持 trace id）|
+| Markdown | [editor.md](https://github.com/pandao/editor.md)（编辑器）+ Go 端渲染 |
+| 内容存储 | 独立 Git 仓库 + 文件系统 |
+| 进程管理 | systemd（推荐）|
+
+## 目录结构
+
+```
+.
+├── Makefile                 # 构建 / 打包 / 格式化
+├── Dockerfile               # 可选：容器化部署
+├── conf/
+│   ├── dev.yaml.example     # 开发配置模板
+│   ├── prod.yaml.example    # 生产配置模板
+│   └── goblog.service       # systemd 单元模板
+├── internal/
+│   ├── config/              # 配置加载（viper）
+│   ├── filestore/           # 文件存储仓储层
+│   ├── handler/
+│   │   ├── admin/           # 管理后台路由
+│   │   └── front/           # 前台公开路由
+│   ├── pkg/                 # 应用内部工具（gin、view、model、slogx）
+│   └── routers/             # 路由装配
+├── pkg/                     # 通用库（utils、cache、exception）
+├── static/                  # 静态资源
+├── tpl/                     # 模板（default 前台、admin 后台、intro 介绍页）
+├── main.go
+└── startup.sh               # 备用：手动启停脚本
 ```
 
-### 功能模块
+## 本地运行
 
-#### 后台
-* 文章管理：文章增删改查
-* 页面管理：页面增删改查，可自定义 markdown 页面
-* 分类管理：分类增删改查
-* 标签管理：标签列表
-  
-#### 前台
-* 文章列表：倒序展示文章、可置顶
-* 内容页面：markdown 内容展示
-* 标签页面：按标签文章数量排序
-* 关于页面：个人说明
-* 阅读清单：个人阅读书籍
-* 站内搜索：支持文章标题、描述、内容、分类、标签模糊搜索
+```bash
+# 1. 克隆仓库
+git clone git@github.com:whrss9527/goblog.git
+cd goblog
+
+# 2. 准备配置
+cp conf/dev.yaml.example conf/dev.yaml
+# 至少需要修改：app.git_repo（指向你的 blog-data 仓库），如果是私有仓库还要填 app.git_token
+# 用 `openssl rand -hex 32` 生成一个 session_secret 替换占位值
+vim conf/dev.yaml
+
+# 3. 编译
+make build       # 默认产出 linux/amd64 二进制
+make mac         # 或编译为 macOS arm64
+
+# 4. 运行
+./goblog -config ./conf/dev.yaml
+# 浏览器打开 http://localhost:9091
+```
+
+## 生产部署（systemd）
+
+```bash
+# 服务器上
+git clone https://github.com/whrss9527/goblog.git /opt/goblog
+cd /opt/goblog
+
+# 配置（参考 conf/prod.yaml.example，注意改 host 字段为对外域名）
+vim conf/prod.yaml
+
+# 构建（服务器需安装 Go 1.23+）
+make build
+
+# 安装 systemd 服务
+mkdir -p /var/lib/goblog/data /var/log/goblog
+cp conf/goblog.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now goblog
+systemctl status goblog
+```
+
+更新发版：
+```bash
+cd /opt/goblog && git pull && make build && systemctl restart goblog
+```
+
+## 配置说明
+
+最小化配置（见 `conf/dev.yaml.example`）：
+
+```yaml
+app:
+  name: "你的博客名"
+  mode: release                # debug / release
+  host: https://your-domain    # 对外可访问的 URL，sitemap 和文章绝对链接会用
+  session_secret: "<32 字节随机串>"
+  data_dir: "/var/lib/goblog/data"
+  git_repo: "https://github.com/your-username/blog-data.git"
+  git_token: ""                # 私有 blog-data 仓库才需要填 PAT (Contents: Read)
+
+server:
+  http_port: 9091
+  graceful_shutdown_timeout: 15s
+```
 
 ## 开发规范
 
-遵循: [Uber Go 语言编码规范](https://github.com/uber-go/guide/blob/master/style.md)
+遵循 [Uber Go 编码规范](https://github.com/uber-go/guide/blob/master/style.md)。
 
-### 常用命令
-
-- make help 查看帮助
-- make dep 下载 Go 依赖包
-- make build 编译项目
-- make tar 打包文件
-
-### 部署流程
-* 依赖环境：
-  
-   mysql、redis、elasticsearch
-   > elasticsearch 可通过配置开启关闭，redis主要考虑到后续加缓存
-  
-* 安装部署
-
-```
-# 下载安装，可以不用是 GOPATH
-git clone https://goblog.git
-
-# 进入到下载目录
-cd goblog
-
-# 生成环境配置文件
-cd conf
-
-# 修改 mysql、redis、elasticsearch 配置
-
-# 导入初始化 sql 结构
-mysql -u root -p
-> create database blog;
-> set names utf8mb4;
-> use blog;
-> source blog.sql;
-
-
-# 下载依赖
-make dep
-
-# 编译
-make build
-
-# 运行
-./goblog dev.yml
-
-# 后台运行
-nohup ./goblog dev.yml &
+提交前：
+```bash
+make fmt   # gofmt -s -w .
+go test ./...
 ```
 
-* supervisord 部署
-  
-```
-[program:goblog]
-directory = /data/modules/blog
-command = /data/modules/blog/goblog -c conf/prod.yml
-autostart = true
-autorestart = true
-startsecs = 5
-user = root
-redirect_stderr = true
-stdout_logfile = /data/modules/blog/supervisor.log
-```
+## 常用命令
 
-* 访问首页
+| 命令 | 说明 |
+|------|------|
+| `make build` | 交叉编译 linux/amd64 |
+| `make mac` | 编译 macOS arm64 |
+| `make tidy` | `go mod tidy` |
+| `make fmt` | 格式化代码 |
+| `make tar` | 打成发布 tar.gz |
+| `make clean` | 清理产物 |
 
-http://localhost:9091
+## License
 
-* 访问后台
-
-http://localhost:9091/admin
-  
-用户名：123456
-  
-密码：123456
+MIT
