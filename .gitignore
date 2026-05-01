@@ -1,0 +1,19 @@
+.idea
+.vscode
+.DS_Store
+.claude/
+/goblog
+/goblog-*.tar.gz
+logs/*
+/static/md.zip
+/heatmap.txt
+/feed.xml
+/blog_monitor.log
+/nohup.out
+conf/dev.yaml
+conf/prod.yaml
+# secrets / local credentials
+.env
+.env.*
+*.pem
+*.key

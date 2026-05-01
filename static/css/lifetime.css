@@ -1,0 +1,146 @@
+:root {
+    --minor: black;
+    --theme: #50bfff;
+    --classC: rgba(100, 100, 100, 0.2);
+}
+div.box {
+    width: 240px;
+    height: 200px;
+
+    z-index: 99999;/*这里是该元素与显示屏的距离，据说越大越好，但是我也没有看到效果，因为没有它也是可以的*/
+    margin-top: 10px;
+    margin-right: 10px;
+    -webkit-transition: .5s ease-in-out;/* css的transition允许css的属性值在一定的时间内从一个状态平滑的过渡到另一个状态 */
+    -moz-transition: .5s ease-in-out;/*这里为了兼容其他浏览器*/
+    -o-transition: .5s ease-in-out;
+    position: fixed; /*固定用*/
+    /*overflow: auto; !*当内容在可显示内容之外，生产自用的滚动条，与position: fixed一起用*!*/
+    top: 50px;
+    bottom: 0;
+    right: 0;
+    /*left: 300px;*/
+    transition: all 0.7s ease 0ms;
+}
+.min-right-box {
+    z-index: 999998;/*这里是该元素与显示屏的距离，据说越大越好，但是我也没有看到效果，因为没有它也是可以的*/
+    margin-top: 10px;
+    margin-right: 10px;
+    -webkit-transition: .5s ease-in-out;/* css的transition允许css的属性值在一定的时间内从一个状态平滑的过渡到另一个状态 */
+    -moz-transition: .5s ease-in-out;/*这里为了兼容其他浏览器*/
+    -o-transition: .5s ease-in-out;
+    position: fixed; /*固定用*/
+    /*overflow: auto; !*当内容在可显示内容之外，生产自用的滚动条，与position: fixed一起用*!*/
+    top: 50px;
+    bottom: 0;
+    right: 0;
+    /*left: 300px;*/
+    transition: all 0.7s ease 0ms;
+    height: 5rem;
+    font-family: "Helvetica Neue",Helvetica,Arial,sans-serif;
+    font-size: 25px;
+    justify-content: center;
+    align-items: center;
+    writing-mode: tb-rl;
+}
+.aside {
+    background-color: #fff;
+    border-radius: 5px;
+    box-shadow: 0 3px 10px -5px rgb(0 0 0 / 30%);
+    padding: 20px;
+}
+
+.p-3 {
+    display: block;
+    font-size: 1.5em;
+    margin-block-start: 0.83em;
+    margin-block-end: 0.83em;
+    margin-inline-start: 0px;
+    margin-inline-end: 0px;
+    font-weight: bold;
+}
+
+.aside-count .content {
+    padding: 15px
+}
+
+.aside-count .content .item {
+    margin-bottom: 15px
+}
+
+.aside-count .content .item:last-child {
+    margin-bottom: 0
+}
+
+.aside-count .content .item .title {
+    font-size: 12px;
+    color: var(--minor);
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center
+}
+
+.aside-count .content .item .title span {
+    color: var(--theme);
+    font-weight: 500;
+    font-size: 14px;
+    margin: 0 5px
+}
+
+.aside-count .content .item .progress {
+    display: flex;
+    align-items: center
+}
+
+.aside-count .content .item .progress .progress-bar {
+    height: 10px;
+    border-radius: 5px;
+    overflow: hidden;
+    background: var(--classC);
+    width: 0;
+    min-width: 0;
+    flex: 1;
+    margin-right: 5px
+}
+
+@keyframes progress {
+    0% {
+        background-position: 0 0
+    }
+
+    100% {
+        background-position: 30px 0
+    }
+}
+
+.aside-count .content .item .progress .progress-bar .progress-inner {
+    width: 0;
+    height: 100%;
+    border-radius: 5px;
+    transition: width 0.35s;
+    -webkit-animation: progress 750ms linear infinite;
+    animation: progress 750ms linear infinite
+}
+
+.aside-count .content .item .progress .progress-bar .progress-inner-1 {
+    background: #bde6ff;
+    background-image: linear-gradient(135deg, #50bfff 25%, transparent 25%, transparent 50%, #50bfff 50%, #50bfff 75%, transparent 75%, transparent 100%);
+    background-size: 30px 30px
+}
+
+.aside-count .content .item .progress .progress-bar .progress-inner-2 {
+    background: #ffd980;
+    background-image: linear-gradient(135deg, #f7ba2a 25%, transparent 25%, transparent 50%, #f7ba2a 50%, #f7ba2a 75%, transparent 75%, transparent 100%);
+    background-size: 30px 30px
+}
+
+.aside-count .content .item .progress .progress-bar .progress-inner-3 {
+    background: #ffa9a9;
+    background-image: linear-gradient(135deg, #ff4949 25%, transparent 25%, transparent 50%, #ff4949 50%, #ff4949 75%, transparent 75%, transparent 100%);
+    background-size: 30px 30px
+}
+
+.aside-count .content .item .progress .progress-bar .progress-inner-4 {
+    background: #67c23a;
+    background-image: linear-gradient(135deg, #4f9e28 25%, transparent 25%, transparent 50%, #4f9e28 50%, #4f9e28 75%, transparent 75%, transparent 100%);
+    background-size: 30px 30px
+}

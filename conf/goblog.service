@@ -1,0 +1,20 @@
+[Unit]
+Description=goblog (Go markdown blog)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/goblog
+ExecStart=/opt/goblog/goblog -config /opt/goblog/conf/prod.yaml
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=20
+StandardOutput=append:/var/log/goblog/access.log
+StandardError=append:/var/log/goblog/error.log
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,239 @@
+{{define "heatmap"}}
+<style>
+    .gh-heatmap { margin: 30px auto; max-width: 900px; overflow-x: auto; }
+    .gh-heatmap-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .gh-heatmap-header h3 { font-size: 16px; color: #666; margin: 0; font-weight: 500; }
+    .gh-heatmap-year-select { font-size: 14px; padding: 2px 8px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; }
+    .gh-heatmap-graph { display: flex; gap: 0; }
+    .gh-heatmap-months { display: flex; font-size: 11px; color: #999; margin-bottom: 4px; margin-left: 32px; }
+    .gh-heatmap-months span { flex: 1; min-width: 0; }
+    .gh-heatmap-weekdays { display: flex; flex-direction: column; gap: 2px; margin-right: 6px; padding-top: 1px; }
+    .gh-heatmap-weekdays span { font-size: 11px; color: #999; height: 13px; line-height: 13px; }
+    .gh-heatmap-grid { display: flex; gap: 3px; }
+    .gh-heatmap-col { display: flex; flex-direction: column; gap: 3px; }
+    .gh-heatmap-cell {
+        width: 13px; height: 13px; border-radius: 2px; cursor: default;
+        transition: outline 0.1s;
+    }
+    .gh-heatmap-cell[data-count]:not([data-count="0"]) { cursor: pointer; }
+    .gh-heatmap-cell:hover { outline: 1.5px solid #333; outline-offset: -0.5px; }
+    .gh-heatmap-level-0 { background-color: #ebedf0; }
+    .gh-heatmap-level-1 { background-color: #9be9a8; }
+    .gh-heatmap-level-2 { background-color: #40c463; }
+    .gh-heatmap-level-3 { background-color: #30a14e; }
+    .gh-heatmap-level-4 { background-color: #216e39; }
+    .gh-heatmap-legend { display: flex; align-items: center; justify-content: flex-end; gap: 3px; margin-top: 8px; font-size: 11px; color: #999; }
+    .gh-heatmap-legend span { width: 13px; height: 13px; border-radius: 2px; display: inline-block; }
+    .gh-heatmap-tooltip {
+        position: fixed; padding: 6px 10px; background: #1b1f23; color: #fff;
+        border-radius: 4px; font-size: 12px; pointer-events: none; z-index: 999;
+        white-space: nowrap; display: none;
+    }
+    .gh-heatmap-detail {
+        margin-top: 15px; background: #f6f8fa; border: 1px solid #e1e4e8;
+        border-radius: 6px; padding: 15px; display: none;
+    }
+    .gh-heatmap-detail h4 { margin: 0 0 10px; font-size: 15px; color: #333; font-weight: 500; }
+    .gh-heatmap-detail ul { list-style: none; padding: 0; margin: 0; }
+    .gh-heatmap-detail li { padding: 6px 0; border-bottom: 1px dashed #e1e4e8; }
+    .gh-heatmap-detail li:last-child { border-bottom: none; }
+    .gh-heatmap-detail a { color: #209460; text-decoration: none; font-size: 14px; }
+    .gh-heatmap-detail a:hover { text-decoration: underline; }
+    .gh-heatmap-detail .detail-time { color: #999; font-size: 12px; margin-left: 8px; }
+    .gh-heatmap-detail .detail-words { color: #bbb; font-size: 12px; margin-left: 6px; }
+
+    [data-theme="dark"] .gh-heatmap-level-0 { background-color: #161b22; }
+    [data-theme="dark"] .gh-heatmap-level-1 { background-color: #0e4429; }
+    [data-theme="dark"] .gh-heatmap-level-2 { background-color: #006d32; }
+    [data-theme="dark"] .gh-heatmap-level-3 { background-color: #26a641; }
+    [data-theme="dark"] .gh-heatmap-level-4 { background-color: #39d353; }
+    [data-theme="dark"] .gh-heatmap-cell:hover { outline-color: #fff; }
+    [data-theme="dark"] .gh-heatmap-detail { background: #22223a; border-color: #333; }
+    [data-theme="dark"] .gh-heatmap-detail h4 { color: #e0e0e0; }
+    [data-theme="dark"] .gh-heatmap-detail li { border-color: #333; }
+    [data-theme="dark"] .gh-heatmap-year-select { background: #2a2a3e; border-color: #444; color: #e0e0e0; }
+</style>
+
+<div class="gh-heatmap">
+    <div class="gh-heatmap-header">
+        <h3 id="heatmap-summary"></h3>
+        <select class="gh-heatmap-year-select" id="heatmap-year-select"></select>
+    </div>
+    <div class="gh-heatmap-months" id="heatmap-months"></div>
+    <div class="gh-heatmap-graph">
+        <div class="gh-heatmap-weekdays">
+            <span>&nbsp;</span><span>一</span><span>&nbsp;</span><span>三</span><span>&nbsp;</span><span>五</span><span>&nbsp;</span>
+        </div>
+        <div class="gh-heatmap-grid" id="heatmap-grid"></div>
+    </div>
+    <div class="gh-heatmap-legend">
+        少 <span class="gh-heatmap-level-0"></span><span class="gh-heatmap-level-1"></span><span class="gh-heatmap-level-2"></span><span class="gh-heatmap-level-3"></span><span class="gh-heatmap-level-4"></span> 多
+    </div>
+    <div class="gh-heatmap-detail" id="heatmap-detail"></div>
+</div>
+<div class="gh-heatmap-tooltip" id="heatmap-tooltip"></div>
+
+<script>
+(function() {
+    var rawData = JSON.parse('{{.heatmap}}');
+    var dataByDate = {};
+    var yearSet = {};
+    rawData.forEach(function(d) {
+        dataByDate[d.date] = d;
+        yearSet[d.date.substring(0, 4)] = true;
+    });
+
+    var years = Object.keys(yearSet).sort().reverse();
+    var select = document.getElementById('heatmap-year-select');
+    years.forEach(function(y) {
+        var opt = document.createElement('option');
+        opt.value = y; opt.textContent = y + '年';
+        select.appendChild(opt);
+    });
+    var allOpt = document.createElement('option');
+    allOpt.value = 'recent'; allOpt.textContent = '最近一年';
+    select.insertBefore(allOpt, select.firstChild);
+
+    var monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+    var tooltip = document.getElementById('heatmap-tooltip');
+    var grid = document.getElementById('heatmap-grid');
+    var monthsEl = document.getElementById('heatmap-months');
+    var summaryEl = document.getElementById('heatmap-summary');
+    var detailEl = document.getElementById('heatmap-detail');
+
+    function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+    function renderYear(mode) {
+        grid.innerHTML = '';
+        monthsEl.innerHTML = '';
+        detailEl.style.display = 'none';
+
+        var startDate, endDate;
+        if (mode === 'recent') {
+            endDate = new Date();
+            startDate = new Date();
+            startDate.setFullYear(startDate.getFullYear() - 1);
+            startDate.setDate(startDate.getDate() + 1);
+        } else {
+            var yr = parseInt(mode);
+            startDate = new Date(yr, 0, 1);
+            endDate = new Date(yr, 11, 31);
+        }
+
+        var dayOfWeek = startDate.getDay();
+        var alignedStart = new Date(startDate);
+        alignedStart.setDate(alignedStart.getDate() - dayOfWeek);
+
+        var totalPosts = 0;
+        var totalDays = 0;
+        var cols = [];
+        var d = new Date(alignedStart);
+        while (d <= endDate || d.getDay() !== 0) {
+            var col = [];
+            for (var i = 0; i < 7; i++) {
+                var ds = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+                var inRange = d >= startDate && d <= endDate;
+                var entry = dataByDate[ds];
+                var count = entry ? entry.total : 0;
+                if (inRange) { totalPosts += count; if (count > 0) totalDays++; }
+                col.push({ date: ds, count: inRange ? count : -1, month: d.getMonth(), day: d.getDate() });
+                d.setDate(d.getDate() + 1);
+            }
+            cols.push(col);
+            if (d > endDate && d.getDay() === 0) break;
+        }
+
+        var totalCols = cols.length;
+        var lastMonth = -1;
+        var spans = [];
+        cols.forEach(function(col, ci) {
+            var firstInRange = null;
+            for (var i = 0; i < col.length; i++) {
+                if (col[i].count >= 0) { firstInRange = col[i]; break; }
+            }
+            if (!firstInRange) return;
+            var m = firstInRange.month;
+            if (m !== lastMonth) {
+                spans.push({ month: m, start: ci });
+                lastMonth = m;
+            }
+        });
+        spans.forEach(function(s, i) {
+            var nextStart = (i + 1 < spans.length) ? spans[i+1].start : totalCols;
+            var width = (nextStart - s.start) / totalCols * 100;
+            var span = document.createElement('span');
+            span.style.width = width + '%';
+            span.textContent = monthNames[s.month];
+            monthsEl.appendChild(span);
+        });
+
+        cols.forEach(function(col) {
+            var colDiv = document.createElement('div');
+            colDiv.className = 'gh-heatmap-col';
+            col.forEach(function(cell) {
+                var el = document.createElement('div');
+                el.className = 'gh-heatmap-cell';
+                if (cell.count < 0) {
+                    el.style.visibility = 'hidden';
+                } else {
+                    var level = cell.count === 0 ? 0 : cell.count === 1 ? 1 : cell.count === 2 ? 2 : cell.count <= 4 ? 3 : 4;
+                    el.classList.add('gh-heatmap-level-' + level);
+                    el.setAttribute('data-date', cell.date);
+                    el.setAttribute('data-count', cell.count);
+
+                    el.addEventListener('mouseenter', function(e) {
+                        var c = parseInt(this.getAttribute('data-count'));
+                        var text = this.getAttribute('data-date') + '：' + (c > 0 ? c + ' 篇文章' : '没有文章');
+                        tooltip.textContent = text;
+                        tooltip.style.display = 'block';
+                        tooltip.style.left = (e.clientX + 10) + 'px';
+                        tooltip.style.top = (e.clientY - 30) + 'px';
+                    });
+                    el.addEventListener('mousemove', function(e) {
+                        tooltip.style.left = (e.clientX + 10) + 'px';
+                        tooltip.style.top = (e.clientY - 30) + 'px';
+                    });
+                    el.addEventListener('mouseleave', function() {
+                        tooltip.style.display = 'none';
+                    });
+
+                    if (cell.count > 0) {
+                        el.addEventListener('click', function() {
+                            var date = this.getAttribute('data-date');
+                            showDetail(date);
+                        });
+                    }
+                }
+                colDiv.appendChild(el);
+            });
+            grid.appendChild(colDiv);
+        });
+
+        var label = mode === 'recent' ? '过去一年' : mode + '年';
+        summaryEl.textContent = label + '共发布 ' + totalPosts + ' 篇文章，活跃 ' + totalDays + ' 天';
+    }
+
+    function showDetail(date) {
+        var entry = dataByDate[date];
+        if (!entry || !entry.details) return;
+        var html = '<h4>' + date + ' 发布的文章</h4><ul>';
+        entry.details.forEach(function(d) {
+            var time = d.date ? d.date.substring(11) : '';
+            var words = d.value ? d.value + ' 字' : '';
+            html += '<li><a href="' + d.link + '">' + d.name + '</a>';
+            if (time) html += '<span class="detail-time">' + time + '</span>';
+            if (words) html += '<span class="detail-words">' + words + '</span>';
+            html += '</li>';
+        });
+        html += '</ul>';
+        detailEl.innerHTML = html;
+        detailEl.style.display = 'block';
+        detailEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    select.addEventListener('change', function() { renderYear(this.value); });
+    renderYear('recent');
+})();
+</script>
+
+{{end}}

@@ -1,0 +1,146 @@
+{{define "content"}}
+<style>
+    .reading-header { text-align: center; padding: 30px 0 10px; }
+    .reading-header h1 { font-size: 28px; color: #333; margin-bottom: 8px; }
+    .reading-stats { color: #999; font-size: 14px; }
+    .reading-stats span { margin: 0 10px; }
+    .reading-filter { text-align: center; margin: 15px 0 25px; }
+    .reading-filter button {
+        background: none; border: 1px solid #ddd; padding: 4px 16px; margin: 0 4px;
+        border-radius: 20px; cursor: pointer; font-size: 13px; color: #666;
+        transition: all 0.2s;
+    }
+    .reading-filter button:hover,
+    .reading-filter button.active { background: #209460; color: #fff; border-color: #209460; }
+    .year-section { margin-bottom: 40px; }
+    .year-title {
+        font-size: 22px; font-weight: 600; color: #209460; padding-bottom: 8px;
+        border-bottom: 2px solid #eee; margin-bottom: 20px;
+        display: flex; align-items: baseline; gap: 12px;
+    }
+    .year-title .year-stats { font-size: 13px; color: #999; font-weight: 400; }
+    .book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+    .book-card {
+        display: flex; gap: 15px; padding: 16px; background: #fff; border: 1px solid #eee;
+        border-radius: 8px; transition: box-shadow 0.2s;
+    }
+    .book-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .book-cover {
+        width: 80px; min-height: 110px; border-radius: 4px; object-fit: cover;
+        background: #f0f0f0; flex-shrink: 0;
+    }
+    .book-cover-placeholder {
+        width: 80px; min-height: 110px; border-radius: 4px; flex-shrink: 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-size: 13px; text-align: center; padding: 8px;
+        line-height: 1.3; word-break: break-all;
+    }
+    .book-info { flex: 1; min-width: 0; }
+    .book-title { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 4px; }
+    .book-author { font-size: 13px; color: #999; margin-bottom: 8px; }
+    .book-meta { font-size: 12px; color: #bbb; margin-bottom: 6px; }
+    .book-status-badge {
+        display: inline-block; font-size: 11px; padding: 1px 8px;
+        border-radius: 10px; margin-bottom: 8px;
+    }
+    .book-status-reading { background: #e8f5e9; color: #2e7d32; }
+    .book-status-finished { background: #e3f2fd; color: #1565c0; }
+    .book-status-wish { background: #fff3e0; color: #e65100; }
+    .book-status-dropped { background: #fce4ec; color: #c62828; }
+    .book-progress-bar {
+        height: 4px; background: #eee; border-radius: 2px; margin: 8px 0; overflow: hidden;
+    }
+    .book-progress-fill {
+        height: 100%; border-radius: 2px; transition: width 0.6s ease;
+    }
+    .book-progress-fill.reading { background: #209460; }
+    .book-progress-fill.finished { background: #1565c0; }
+    .book-rating { color: #f5a623; font-size: 14px; margin-bottom: 4px; }
+    .book-comment { font-size: 13px; color: #666; line-height: 1.5; margin-top: 6px; }
+
+    [data-theme="dark"] .reading-header h1 { color: #e0e0e0; }
+    [data-theme="dark"] .book-card { background: #22223a; border-color: #333; }
+    [data-theme="dark"] .book-title { color: #e0e0e0; }
+    [data-theme="dark"] .book-comment { color: #aaa; }
+    [data-theme="dark"] .year-title { color: #2ecc71; border-color: #333; }
+    [data-theme="dark"] .book-progress-bar { background: #333; }
+    [data-theme="dark"] .reading-filter button { border-color: #444; color: #aaa; }
+    [data-theme="dark"] .reading-filter button:hover,
+    [data-theme="dark"] .reading-filter button.active { background: #209460; color: #fff; border-color: #209460; }
+</style>
+<div class="container">
+    <div class="content-wrap">
+        <div class="content">
+            <div class="reading-header">
+                <h1>阅读清单</h1>
+                <div class="reading-stats">
+                    <span>共 {{.total_all}} 本</span>
+                    <span>已读 {{.finished_all}} 本</span>
+                </div>
+            </div>
+            <div class="reading-filter">
+                <button class="active" onclick="filterBooks('all', this)">全部</button>
+                <button onclick="filterBooks('reading', this)">在读</button>
+                <button onclick="filterBooks('finished', this)">已读</button>
+                <button onclick="filterBooks('wish', this)">想读</button>
+            </div>
+
+            {{range .book_years}}
+            <div class="year-section">
+                <div class="year-title">
+                    {{.Year}}
+                    <span class="year-stats">{{.Stats.Total}} 本{{if gt .Stats.Finished 0}} · 已读 {{.Stats.Finished}} 本{{end}}{{if gt .Stats.Reading 0}} · 在读 {{.Stats.Reading}} 本{{end}}</span>
+                </div>
+                <div class="book-grid">
+                    {{range .Books}}
+                    <div class="book-card" data-status="{{.Status}}">
+                        {{if .Cover}}
+                        <img class="book-cover" src="{{.Cover}}" alt="{{.Title}}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                        <div class="book-cover-placeholder" style="display:none">{{.Title}}</div>
+                        {{else}}
+                        <div class="book-cover-placeholder">{{.Title}}</div>
+                        {{end}}
+                        <div class="book-info">
+                            <span class="book-status-badge {{if eq .Status 1}}book-status-reading{{else if eq .Status 2}}book-status-finished{{else if eq .Status 3}}book-status-wish{{else}}book-status-dropped{{end}}">{{if eq .Status 1}}在读{{else if eq .Status 2}}已读{{else if eq .Status 3}}想读{{else}}弃读{{end}}</span>
+                            <div class="book-title">{{.Title}}</div>
+                            {{if .Author}}<div class="book-author">{{.Author}}</div>{{end}}
+                            <div class="book-meta">
+                                {{if .StartDate}}{{.StartDate}}{{end}}
+                                {{if .FinishDate}} ~ {{.FinishDate}}{{end}}
+                            </div>
+                            {{if and (gt .Progress 0) (lt .Progress 100)}}
+                            <div class="book-progress-bar">
+                                <div class="book-progress-fill {{if eq .Status 1}}reading{{else}}finished{{end}}" style="width:{{.Progress}}%"></div>
+                            </div>
+                            <div class="book-meta">{{.Progress}}%</div>
+                            {{end}}
+                            {{if gt .Rating 0}}
+                            <div class="book-rating">{{if ge .Rating 1}}★{{else}}☆{{end}}{{if ge .Rating 2}}★{{else}}☆{{end}}{{if ge .Rating 3}}★{{else}}☆{{end}}{{if ge .Rating 4}}★{{else}}☆{{end}}{{if ge .Rating 5}}★{{else}}☆{{end}}</div>
+                            {{end}}
+                            {{if .Comment}}<div class="book-comment">{{.Comment}}</div>{{end}}
+                        </div>
+                    </div>
+                    {{end}}
+                </div>
+            </div>
+            {{end}}
+        </div>
+    </div>
+</div>
+<script>
+function filterBooks(status, btn) {
+    document.querySelectorAll('.reading-filter button').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    document.querySelectorAll('.book-card').forEach(function(card) {
+        if (status === 'all') { card.style.display = ''; return; }
+        var map = { reading: '1', finished: '2', wish: '3' };
+        card.style.display = card.getAttribute('data-status') === map[status] ? '' : 'none';
+    });
+    document.querySelectorAll('.year-section').forEach(function(sec) {
+        var visible = sec.querySelectorAll('.book-card[style=""], .book-card:not([style])');
+        sec.style.display = visible.length > 0 ? '' : 'none';
+    });
+}
+</script>
+{{end}}

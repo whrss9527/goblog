@@ -1,0 +1,20 @@
+app:
+  name: 了迹奇有没
+  version: true
+  mode: release
+  addr: 0.0.0.0:9091
+  # 改成你公网访问的域名（cloudflare tunnel 暴露的那个），用于 sitemap / 文章绝对链接
+  host: https://your-domain.example.com
+  cdn: "https://pub-191902ac1a1242aa9d4671d65604ad0c.r2.dev"
+  music: "394501952"
+  # !! 不要把这个值发到任何聊天工具，每台服务器一份独立的随机字符串
+  session_secret: "2f0886b6ed0c406606555574a967d0a5357facc1db6c71a745e9ac7aea2300a9"
+  # 服务器上博客内容仓库 clone 到的目录，需可写
+  data_dir: "/var/lib/goblog/data"
+  git_repo: "https://github.com/whrss9527/blog-data.git"
+  # 如果 blog-data 是私有仓库，填 GitHub PAT；公开仓留空
+  git_token: ""
+
+server:
+  http_port: 9091
+  graceful_shutdown_timeout: 15s

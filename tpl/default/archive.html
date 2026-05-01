@@ -1,0 +1,29 @@
+{{define "content"}}
+<div class="container">
+    <div class="content-wrap">
+        <div class="content">
+            <header class="article-header">
+                <h1 class="article-title">归档</h1>
+                <div class="article-meta">
+                    <span>共 {{.total}} 篇文章</span>
+                </div>
+            </header>
+            <div class="archive-list">
+                {{range .archives}}
+                <div class="archive-year">
+                    <h2 class="archive-year-title">{{.Year}}</h2>
+                    <ul class="archive-posts">
+                        {{range .Posts}}
+                        <li class="archive-post-item">
+                            <span class="archive-post-date">{{.CreatedAt.Format "01-02"}}</span>
+                            <a class="archive-post-link" href="/posts/{{.Identity}}">{{.Title}}</a>
+                        </li>
+                        {{end}}
+                    </ul>
+                </div>
+                {{end}}
+            </div>
+        </div>
+    </div>
+</div>
+{{end}}

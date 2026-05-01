@@ -1,0 +1,20 @@
+app:
+  name: 了迹奇有没
+  version: true
+  mode: debug
+  addr: localhost:9091
+  host: http://localhost:9091
+  cdn: ""
+  music: ""
+  # 用 `openssl rand -hex 32` 生成一个随机串，不要直接使用此处占位值
+  session_secret: "change-me-to-a-random-string"
+  # 博客内容仓库会被 clone 到此目录（运行时拉取）
+  data_dir: "/tmp/blog-data"
+  # 公开仓库直接填 URL；私有仓库还需要在下方 git_token 填 PAT
+  git_repo: "https://github.com/your-username/blog-data.git"
+  # 仅当 git_repo 是私有仓库时填 GitHub PAT (Contents: Read)；公开仓留空
+  git_token: ""
+
+server:
+  http_port: 9091
+  graceful_shutdown_timeout: 15s

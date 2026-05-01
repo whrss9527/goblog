@@ -1,0 +1,67 @@
+{{define "content"}}
+<div class="container">
+    <div class="content-wrap">
+        <div class="content">
+            <header class="article-header">
+                <h1 class="article-title"><a href="">{{.post.Title}}</a></h1>
+                <div class="article-meta ">
+                    <span class="item category"><a href="/?category_id={{.post.CategoryId}}">{{.post.CategoryName}}</a></span>
+                    <span class="item time ">{{.post.CreatedAt.Format "2006-01-02 15:04:05"}}</span>
+                    <span class="item tags">
+                            标签：
+                            {{range .tags}}
+                            <a href="/?tag_id={{.Id}}">{{.Name}}</a>
+                            {{end}}
+                        </span>
+                    <span class="item views"><i class="glyphicon glyphicon-eye-open"></i> {{.post.Views}}</span>
+                </div>
+            </header>
+
+            <article class="article-content">
+                <div id="post-viewer">
+                    <textarea id="append-test" style="display:none;">{{.post.Content}}</textarea>
+                </div>
+
+            </article>
+            <script>
+            (function() {
+                var giscusTheme = (localStorage.getItem('theme') === 'dark') ? 'dark' : 'light';
+                var s = document.createElement('script');
+                s.src = 'https://giscus.app/client.js';
+                s.setAttribute('data-repo', 'whrss9527/blog-comments');
+                s.setAttribute('data-repo-id', 'R_kgDOI5Sj3w');
+                s.setAttribute('data-category-id', 'DIC_kwDOI5Sj384CT-Us');
+                s.setAttribute('data-mapping', 'pathname');
+                s.setAttribute('data-strict', '0');
+                s.setAttribute('data-reactions-enabled', '1');
+                s.setAttribute('data-emit-metadata', '0');
+                s.setAttribute('data-input-position', 'top');
+                s.setAttribute('data-theme', giscusTheme);
+                s.setAttribute('data-lang', 'zh-CN');
+                s.setAttribute('crossorigin', 'anonymous');
+                s.async = true;
+                document.currentScript.parentNode.insertBefore(s, document.currentScript);
+            })();
+            </script>
+        </div>
+
+    </div>
+
+</div>
+<script type="text/javascript">
+
+    window.onload = function () {
+        editormd.markdownToHTML("post-viewer", {
+            htmlDecode: "style,script,iframe",
+            emoji: true,
+            taskList: true,
+            tex: true,
+            flowChart: true,
+            sequenceDiagram: true,
+        });
+        if (typeof window.enhancePost === 'function') {
+            window.enhancePost();
+        }
+    }
+</script>
+{{end}}

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>{{.title}}|{{.name}}</title>
+    <meta name="keywords"
+          content="blog,markdown,kotlin,java,c,go,golang,git,github,it,shell,linux,没有奇迹了,中冬廿九,全球变冷,有何不可,了迹奇有没,程序员,博客,源码,架构,算法,数据结构,互联网,程序化广告,教程,Miracle Reversal"/>
+    <meta name="Description"
+          content="了迹奇有没， 互联网一线码农，技术分享，生活收获。Miracle Reversal,Internet back-end engineer, technology sharing, life harvesting."/>
+    <meta name="description" content="{{.description}}"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" media="screen" href="{{.cdn}}/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="{{.cdn}}/md/css/editormd.preview.css"/>
+    <script src="https://libs.baidu.com/jqueryui/1.9.1/jquery-ui.min.js"></script>
+    <script src="https://ajax.aspnetcdn.com/ajax/jquery/jquery-1.9.0.min.js"></script>
+    <script src="{{.cdn}}/js/lifetime.js"></script>
+    <link rel="stylesheet" href="{{.cdn}}/css/lifetime.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quicklink/2.3.0/quicklink.umd.js"></script>
+    <script>
+        let originalTitle = document.title;
+        document.addEventListener('visibilitychange', function() {
+            if(document.visibilityState === 'hidden') {
+                document.title = '你别走吖 Σ(っ °д° ;)っ';
+            }
+            else {
+                document.title = '你可算回来了٩(๛ ˘ ³˘)۶';
+                // 在一段时间后恢复原标题
+                setTimeout(function() {
+                    document.title = originalTitle;
+                }, 2000);
+            }
+        });
+        window.addEventListener('load', () => {
+            quicklink.listen();
+        });
+
+    </script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback" defer></script>
+</head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SXYGHHQ02D"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+
+    function gtag() {
+        dataLayer.push(arguments);
+    }
+
+    gtag('js', new Date());
+
+    gtag('config', 'G-SXYGHHQ02D');
+
+    window.onloadTurnstileCallback = function () {
+        turnstile.render('#example-container', {
+            sitekey: '0x4AAAAAAALktj8ucA6FlYOS',
+            callback: function(token) {
+                console.log(`Challenge Success ${token}`);
+            },
+        });
+    };
+
+</script>
+
+<body>
+<div id="reading-progress"></div>
+<header>
+    <nav class="navbar navbar-default" id="navbar">
+        <div class="container">
+            <div class="navbar-header" style="padding-bottom:-10px;">
+                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse"
+                        data-target="#header-navbar" aria-expanded="false">
+                    <span class="sr-only"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="logo"
+                   style="float:left;display:inline-block;margin-left:10px; margin-top: 5px; max-height: 60px; padding-bottom:0px;"
+                   href="../intro">
+                    <div style="width:50px;height:50px;align-items: center;display:inline-block;  background-size: contain; padding-bottom:-35px; ">
+                        <img style="width:100%;height:100%; margin-top: -25px;" src="{{.cdn}}/logo.png">
+                    </div>
+                    <div style="font-size: 25px; margin-top: 0px;display:inline-block; margin-left: 3px; max-height: 50px;">
+                        了迹奇有没
+                    </div>
+                </a>
+            </div>
+            <div class="collapse navbar-collapse" id="header-navbar">
+                <form class="navbar-form nav navbar-form navbar-right search-nav" action="/" method="GET">
+                    <div class="input-group">
+                        <input type="text" name="keyword" class="form-control" placeholder="请输入关键字" maxlength="20"
+                               autocomplete="off">
+                        <span class="input-group-btn">
+                                <button type="submit" class="btn btn-default btn-search">搜索</button>
+                            </span>
+                    </div>
+
+                </form>
+                <a href="/feed.xml"><i class="fa fa-rss fa-inverse"
+                                   style="color:orange;font-size: 20px;margin-top: 10px;"></i></a>
+                <ul class="nav navbar-nav navbar-right">
+                    <li><a href="/">首页</a></li>
+                    <li><a href="/archive">归档</a></li>
+                    <li><a href="/tags">标签</a></li>
+                    <li><a href="/reading">阅读</a></li>
+                    <li><a href="/pages/about">关于</a></li>
+                    <li>
+                        <span id="dark-toggle" class="theme-switch">
+                            <span class="theme-switch-knob">
+                                <span class="theme-switch-sun">☀️</span>
+                                <span class="theme-switch-moon">🌙</span>
+                            </span>
+                        </span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+</header>
+
+{{template "content" .}}
+
+<div class="footer">
+    <div class="container">
+        <p>whrss.com © 2023 | Powered by <a href="https://github.com/whrss9527">whrss</a> | Based on <a
+                href="https://getbootstrap.com/">Bootstrap</a></p>
+    </div>
+</div>
+
+<script src="{{.cdn}}/js/jquery.min.js"></script>
+<script src="{{.cdn}}/js/bootstrap.min.js"></script>
+<script src="{{.cdn}}/md/lib/marked.min.js"></script>
+<script src="{{.cdn}}/md/lib/prettify.min.js"></script>
+
+<script src="{{.cdn}}/md/lib/raphael.min.js"></script>
+<script src="{{.cdn}}/md/lib/underscore.min.js"></script>
+<script src="{{.cdn}}/md/lib/sequence-diagram.min.js"></script>
+<script src="{{.cdn}}/md/lib/flowchart.min.js"></script>
+<script src="{{.cdn}}/md/lib/jquery.flowchart.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.18.1/moment.min.js" charset="utf-8"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/4.10.2/d3.min.js" charset="utf-8"></script>
+<script src="{{.cdn}}/heatmap/src/calendar-heatmap.js"></script>
+<link rel="stylesheet" type="text/css" href="{{.cdn}}/heatmap/dist/calendar-heatmap.min.css">
+<script src="{{.cdn}}/js/customization.js"></script>
+<script src="{{.cdn}}/md/editormd.js"></script>
+<script src="/static/js/enhance.js"></script>
+
+</body>
+
+</html>

@@ -1,0 +1,67 @@
+{{define "content"}}
+<div>
+    <span id="min-left-menu" class="min-right-box" style="display:none" ; style="width: 2.5rem;" onclick="menuShow()">
+        <i class="fa fa-chevron-circle-left"></i>
+    </span>
+</div>
+<div class="container">
+    <div class="content-wrap">
+        <div class="content center  aside">
+            <div class="title">
+                <div class="more">
+                    {{range .categories}}
+                    <a href="?category_id={{.Id}}">{{.Name}}</a>
+                    {{end}}
+                </div>
+
+            </div>
+
+            {{if .posts}}
+            {{range .posts}}
+            <div class="excerpt" >
+                <header>
+                    <a class="cat" href="#" >{{.CategoryName}}<i></i></a>
+                    <h2 style="font-family: PingFangSC-Light, serif;line-height: 1.6;font-weight: 200; color: #209460;"><a href="/posts/{{.Identity}}">{{.Title}}</a></h2>
+                </header>
+                <div class="excerpt-desc" style="font-family: PingFangSC-Thin, serif;line-height: 1.6;font-weight: 200">
+                    {{.Description}}
+
+                </div>
+
+                <p class="meta"  style="font-family:PingFangSC-Regular, sans-serif">
+                    <a class="category" href="#"><i class="glyphicon glyphicon-folder-open"></i> {{.CategoryName}}</a>
+                    <a class="time" href="#" ><i class="glyphicon glyphicon-time"></i> {{.CreatedAt.Format "2006-01-02 15:04:05"}}</a>
+                    <a class="views" href="#"><i class="glyphicon glyphicon-eye-open"></i> {{.Views}}</a>
+                </p>
+
+            </div>
+
+            {{end}}
+            {{else}}
+            <div class="text-center">
+                <h3>
+                    <stong>暂无内容</stong>
+                </h3>
+            </div>
+            {{end}}
+
+            <nav aria-label="Page navigation">
+                <ul class="pagination">
+                    <li>
+                        <a href="{{.pre_url}}" aria-label="Previous">
+                            <span aria-hidden="true">上一页</span>
+                        </a>
+                    </li>
+                    <li><a href="#">...</a></li>
+                    <li>
+                        <a href="{{.next_url}}" aria-label="Next">
+                            <span aria-hidden="true">下一页</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+
+    </div>
+</div>
+{{end}}

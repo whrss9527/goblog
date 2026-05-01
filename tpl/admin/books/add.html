@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="utf-8" />
+    <title>书籍编辑 - Admin</title>
+    <link rel="stylesheet" type="text/css" media="screen" href="{{.cdn}}/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="{{.cdn}}/md/css/style.css" />
+    <style>
+        .book-form { max-width: 600px; margin: 30px auto; }
+        .book-form label { display: block; margin-bottom: 15px; }
+        .book-form label span { display: block; font-weight: bold; margin-bottom: 4px; }
+        .book-form .form-control { width: 100%; }
+        .book-form .btns { margin-top: 20px; }
+        .book-form button { padding: 8px 30px; }
+        .cover-preview { max-height: 150px; margin-top: 8px; border-radius: 4px; }
+        .isbn-fetch { margin-left: 8px; padding: 6px 12px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div id="layout">
+        <header>
+            <h1 style="margin-left:75px;">{{if .book}}编辑书籍{{else}}添加书籍{{end}} <a href="/admin/books">返回列表</a></h1>
+        </header>
+        <form class="book-form" action="/admin/books/save" method="POST">
+            <input type="hidden" name="_csrf" value="{{.csrf_token}}">
+            <input type="hidden" name="id" value="{{if .book}}{{.book.Id}}{{end}}">
+            <label>
+                <span>书名 *</span>
+                <input class="form-control" type="text" name="title" value="{{if .book}}{{.book.Title}}{{end}}" required>
+            </label>
+            <label>
+                <span>作者</span>
+                <input class="form-control" type="text" name="author" value="{{if .book}}{{.book.Author}}{{end}}">
+            </label>
+            <label>
+                <span>ISBN（填写后自动获取封面）</span>
+                <div style="display:flex;align-items:center">
+                    <input class="form-control" type="text" name="isbn" id="isbn" value="{{if .book}}{{.book.ISBN}}{{end}}">
+                    <button type="button" class="btn btn-default isbn-fetch" onclick="fetchCover()">获取封面</button>
+                </div>
+            </label>
+            <label>
+                <span>封面 URL（留空则自动按 ISBN 获取）</span>
+                <input class="form-control" type="text" name="cover" id="cover" value="{{if .book}}{{.book.Cover}}{{end}}">
+                <img id="cover-preview" class="cover-preview" src="{{if .book}}{{.book.Cover}}{{end}}" style="{{if not .book}}display:none{{else}}{{if .book.Cover}}{{else}}display:none{{end}}{{end}}">
+            </label>
+            <label>
+                <span>状态</span>
+                <select class="form-control" name="status">
+                    <option value="1" {{if .book}}{{if eq .book.Status 1}}selected{{end}}{{end}}>在读</option>
+                    <option value="2" {{if .book}}{{if eq .book.Status 2}}selected{{end}}{{end}}>已读</option>
+                    <option value="3" {{if .book}}{{if eq .book.Status 3}}selected{{end}}{{end}}>想读</option>
+                    <option value="4" {{if .book}}{{if eq .book.Status 4}}selected{{end}}{{end}}>弃读</option>
+                </select>
+            </label>
+            <label>
+                <span>进度（0-100）</span>
+                <input class="form-control" type="number" name="progress" min="0" max="100" value="{{if .book}}{{.book.Progress}}{{else}}0{{end}}">
+            </label>
+            <label>
+                <span>评分（1-5，0 表示未评）</span>
+                <input class="form-control" type="number" name="rating" min="0" max="5" value="{{if .book}}{{.book.Rating}}{{else}}0{{end}}">
+            </label>
+            <label>
+                <span>短评</span>
+                <textarea class="form-control" name="comment" rows="3">{{if .book}}{{.book.Comment}}{{end}}</textarea>
+            </label>
+            <label>
+                <span>开始日期</span>
+                <input class="form-control" type="date" name="start_date" value="{{if .book}}{{.book.StartDate}}{{end}}">
+            </label>
+            <label>
+                <span>完成日期</span>
+                <input class="form-control" type="date" name="finish_date" value="{{if .book}}{{.book.FinishDate}}{{end}}">
+            </label>
+            <label>
+                <span>年份 *</span>
+                <input class="form-control" type="number" name="year" value="{{if .book}}{{.book.Year}}{{else}}2024{{end}}" required>
+            </label>
+            <div class="btns">
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+    </div>
+    <script>
+        function fetchCover() {
+            var isbn = document.getElementById('isbn').value.trim();
+            if (!isbn) { alert('请先输入 ISBN'); return; }
+            var url = 'https://covers.openlibrary.org/b/isbn/' + isbn + '-M.jpg';
+            document.getElementById('cover').value = url;
+            var img = document.getElementById('cover-preview');
+            img.src = url; img.style.display = 'block';
+        }
+        document.getElementById('cover').addEventListener('input', function() {
+            var img = document.getElementById('cover-preview');
+            if (this.value) { img.src = this.value; img.style.display = 'block'; }
+            else { img.style.display = 'none'; }
+        });
+    </script>
+</body>
+</html>
