@@ -53,6 +53,7 @@ func NewFileRepository(dataDir, gitRepo, gitToken string) (*FileRepository, erro
 	}
 
 	go r.flushViewsLoop()
+	go r.pushViewsLoop()
 
 	return r, nil
 }
@@ -64,6 +65,7 @@ func (r *FileRepository) ensureDataDir(gitRepo, gitToken string) error {
 		if gitToken != "" {
 			r.configureGitToken(gitToken)
 		}
+		r.configureGitIdentity()
 		cmd := exec.Command("git", "-C", r.dataDir, "pull", "--ff-only")
 		if out, err := cmd.CombinedOutput(); err != nil {
 			slog.Warn("git pull failed, using local data", "err", err, "output", string(out))
@@ -90,8 +92,30 @@ func (r *FileRepository) ensureDataDir(gitRepo, gitToken string) error {
 		return fmt.Errorf("git clone failed: %w\n%s", err, string(out))
 	}
 	r.gitEnabled = true
+	r.configureGitIdentity()
 	slog.Info("data repo cloned successfully")
 	return nil
+}
+
+// configureGitIdentity sets local git user.name/email if they are not already
+// configured. Required for commits made by the application (views push,
+// admin operations) to work on a fresh server where global git identity is
+// missing.
+func (r *FileRepository) configureGitIdentity() {
+	for _, key := range []string{"user.name", "user.email"} {
+		cmd := exec.Command("git", "-C", r.dataDir, "config", "--local", key)
+		if err := cmd.Run(); err == nil {
+			continue // already set locally
+		}
+		var value string
+		switch key {
+		case "user.name":
+			value = "goblog"
+		case "user.email":
+			value = "goblog@localhost"
+		}
+		exec.Command("git", "-C", r.dataDir, "config", "--local", key, value).Run()
+	}
 }
 
 func (r *FileRepository) configureGitToken(token string) {
@@ -287,12 +311,33 @@ func (r *FileRepository) loadPosts() error {
 	return nil
 }
 
+// saveJSON writes v to filename inside dataDir atomically: marshal to a
+// sibling temp file, fsync, then rename over the target. This avoids leaving a
+// half-written file behind if the process is killed mid-write.
 func (r *FileRepository) saveJSON(filename string, v any) error {
 	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(r.dataDir, filename), data, 0644)
+	target := filepath.Join(r.dataDir, filename)
+	tmp, err := os.CreateTemp(r.dataDir, filename+".tmp-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName) // no-op if rename succeeded
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, target)
 }
 
 func (r *FileRepository) flushViews() error {
@@ -313,6 +358,50 @@ func (r *FileRepository) flushViewsLoop() {
 			slog.Error("flush views failed", "err", err)
 		}
 	}
+}
+
+// pushViewsLoop periodically commits and pushes views.json upstream so the
+// view counts survive losing the local data dir. It runs at a coarser cadence
+// than flushViewsLoop to keep commit volume sane.
+func (r *FileRepository) pushViewsLoop() {
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+	for range ticker.C {
+		if err := r.flushViews(); err != nil {
+			slog.Error("flush views failed", "err", err)
+			continue
+		}
+		r.gitCommitAndPushPath("views.json", "chore: update views.json")
+	}
+}
+
+// gitCommitAndPushPath stages exactly the given path (relative to dataDir),
+// commits it if there are changes, and pushes. Use this when you want a clean
+// commit scoped to a single file rather than gitCommitAndPush which adds -A.
+func (r *FileRepository) gitCommitAndPushPath(path, message string) {
+	if !r.gitEnabled {
+		return
+	}
+	go func() {
+		cmd := exec.Command("git", "-C", r.dataDir, "add", "--", path)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			slog.Error("git add failed", "err", err, "output", string(out), "path", path)
+			return
+		}
+		cmd = exec.Command("git", "-C", r.dataDir, "diff", "--cached", "--quiet", "--", path)
+		if err := cmd.Run(); err == nil {
+			return
+		}
+		cmd = exec.Command("git", "-C", r.dataDir, "commit", "-m", message, "--", path)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			slog.Error("git commit failed", "err", err, "output", string(out))
+			return
+		}
+		cmd = exec.Command("git", "-C", r.dataDir, "push")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			slog.Error("git push failed", "err", err, "output", string(out))
+		}
+	}()
 }
 
 func (r *FileRepository) gitCommitAndPush(message string) {
