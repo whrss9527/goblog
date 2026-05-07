@@ -13,12 +13,14 @@ import (
 )
 
 type FeedHandler struct {
-	MySQLRepo repository.PostRepository
+	PostRepo repository.PostRepository
+	host     string
 }
 
-func NewFeedHandler(mysqlRepo repository.PostRepository) *FeedHandler {
+func NewFeedHandler(postRepo repository.PostRepository, host string) *FeedHandler {
 	return &FeedHandler{
-		MySQLRepo: mysqlRepo,
+		PostRepo: postRepo,
+		host:     host,
 	}
 }
 
@@ -45,7 +47,7 @@ func (h *FeedHandler) GetRobotTxt(ctx *gin.Context) {
 }
 
 func (h *FeedHandler) GenerateFeedXml() {
-	posts, err := h.MySQLRepo.GetPostsWithContent()
+	posts, err := h.PostRepo.GetPostsWithContent()
 	if err != nil {
 		slog.Error("feed: get posts failed", "err", err)
 		return
@@ -55,7 +57,7 @@ func (h *FeedHandler) GenerateFeedXml() {
 	for _, post := range posts {
 		articles = append(articles, feed.Article{
 			Title:     post.Title,
-			Link:      "https://whrss.com/posts/" + post.Identity,
+			Link:      h.host + "/posts/" + post.Identity,
 			Id:        post.Identity,
 			Published: post.CreatedAt,
 			Created:   post.CreatedAt,

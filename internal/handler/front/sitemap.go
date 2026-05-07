@@ -13,10 +13,11 @@ import (
 
 type SitemapHandler struct {
 	PostRepo repository.PostRepository
+	host     string
 }
 
-func NewSitemapHandler(postRepo repository.PostRepository) *SitemapHandler {
-	return &SitemapHandler{PostRepo: postRepo}
+func NewSitemapHandler(postRepo repository.PostRepository, host string) *SitemapHandler {
+	return &SitemapHandler{PostRepo: postRepo, host: host}
 }
 
 type urlset struct {
@@ -32,7 +33,8 @@ type sitemapURL struct {
 	Priority   string `xml:"priority,omitempty"`
 }
 
-func (h *SitemapHandler) GenerateSitemap(host string) {
+func (h *SitemapHandler) GenerateSitemap() {
+	host := h.host
 	posts, err := h.PostRepo.GetPostsArchive()
 	if err != nil {
 		slog.Error("sitemap: get posts failed", "err", err)

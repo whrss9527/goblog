@@ -35,7 +35,10 @@ func parseFrontmatter(raw string) (meta map[string]string, content string) {
 		}
 		key := strings.TrimSpace(line[:colonIdx])
 		val := strings.TrimSpace(line[colonIdx+1:])
-		val = strings.Trim(val, "\"")
+		if len(val) >= 2 && val[0] == '"' && val[len(val)-1] == '"' {
+			val = val[1 : len(val)-1]
+			val = strings.ReplaceAll(val, `\"`, `"`)
+		}
 		meta[key] = val
 	}
 	return

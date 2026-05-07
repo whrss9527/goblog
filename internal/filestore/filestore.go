@@ -34,14 +34,18 @@ type FileRepository struct {
 	nextBookId     int
 
 	gitEnabled bool
+	gitMu      sync.Mutex
 }
 
 func NewFileRepository(dataDir, gitRepo, gitToken string) (*FileRepository, error) {
 	r := &FileRepository{
-		dataDir:    dataDir,
-		postById:   make(map[string]*model.Post),
-		postBySlug: make(map[string]*model.Post),
-		views:      make(map[string]int),
+		dataDir:        dataDir,
+		postById:       make(map[string]*model.Post),
+		postBySlug:     make(map[string]*model.Post),
+		views:          make(map[string]int),
+		nextCategoryId: 1,
+		nextTagId:      1,
+		nextBookId:     1,
 	}
 
 	if err := r.ensureDataDir(gitRepo, gitToken); err != nil {
@@ -383,6 +387,8 @@ func (r *FileRepository) gitCommitAndPushPath(path, message string) {
 		return
 	}
 	go func() {
+		r.gitMu.Lock()
+		defer r.gitMu.Unlock()
 		cmd := exec.Command("git", "-C", r.dataDir, "add", "--", path)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			slog.Error("git add failed", "err", err, "output", string(out), "path", path)
@@ -409,6 +415,8 @@ func (r *FileRepository) gitCommitAndPush(message string) {
 		return
 	}
 	go func() {
+		r.gitMu.Lock()
+		defer r.gitMu.Unlock()
 		cmd := exec.Command("git", "-C", r.dataDir, "add", "-A")
 		if out, err := cmd.CombinedOutput(); err != nil {
 			slog.Error("git add failed", "err", err, "output", string(out))

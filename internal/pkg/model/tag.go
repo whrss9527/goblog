@@ -7,7 +7,3 @@ type Tag struct {
 	CreatedAt string
 	UpdatedAt string
 }
-
-func (Tag) TableName() string {
-	return "tags"
-}

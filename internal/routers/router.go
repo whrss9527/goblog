@@ -3,6 +3,7 @@ package routers
 import (
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/sessions"
@@ -36,10 +37,12 @@ func (server *Server) InitRouter(router *gin.Engine) {
 		secret = "goblog-default-secret-change-me"
 	}
 	store := cookie.NewStore([]byte(secret))
+	isHTTPS := strings.HasPrefix(server.config.App.Host, "https://")
 	store.Options(sessions.Options{
 		Path:     "/",
 		MaxAge:   86400 * 7,
 		HttpOnly: true,
+		Secure:   isHTTPS,
 		SameSite: http.SameSiteLaxMode,
 	})
 	router.Use(sessions.Sessions("goblog_session", store))
@@ -49,13 +52,13 @@ func (server *Server) InitRouter(router *gin.Engine) {
 		log.Fatal("init file repository failed: ", err)
 	}
 
-	feedHandler := front.NewFeedHandler(repo)
+	feedHandler := front.NewFeedHandler(repo, server.config.App.Host)
 	feedHandler.GenerateFeedXml()
-	sitemapHandler := front.NewSitemapHandler(repo)
-	sitemapHandler.GenerateSitemap(server.config.App.Host)
+	sitemapHandler := front.NewSitemapHandler(repo, server.config.App.Host)
+	sitemapHandler.GenerateSitemap()
 	heatmapHandler := admin.NewHeatMapHandler(repo)
 	heatmapHandler.RunTask()
-	postHandler := admin.NewPostHandler(repo, repo, repo, feedHandler, server.config)
+	postHandler := admin.NewPostHandler(repo, repo, repo, feedHandler, sitemapHandler, server.config)
 	frontPostHandler := front.NewPostHandler(repo, repo, repo, server.config)
 	authHandler := admin.NewAuthHandler(repo, server.config)
 	categoryHandler := admin.NewCategoryHandler(repo, server.config)

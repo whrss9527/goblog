@@ -1,15 +1,15 @@
-{{template "header.html" .}}
-    <div class="container">
-        <div class="panel">
-            <div class="text-center">
-                <h3>
-                    <stong>很抱歉，您要找的页面不存在</stong>
-                </h3>
-                <div class="padding-big">
-                    <span><a href="index.html">返回首页</a></span>
-                    <span><a href="404.html">联系我们</a></span>
-                </div>
+{{define "content"}}
+<div class="container">
+    <div class="content-wrap">
+        <div class="content">
+            <div class="text-center" style="padding: 80px 0;">
+                <h1 style="font-size: 72px; color: #999;">404</h1>
+                <h3>很抱歉，您要找的页面不存在</h3>
+                <p style="margin-top: 20px;">
+                    <a href="/" class="btn btn-default">返回首页</a>
+                </p>
             </div>
         </div>
     </div>
-{{template "footer.html" .}}
+</div>
+{{end}}

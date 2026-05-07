@@ -17,20 +17,22 @@ import (
 )
 
 type PostHandler struct {
-	PostRepo     repository.PostRepository
-	CategoryRepo repository.CategoryRepository
-	TagRepo      repository.TagRepository
-	feedHandler  *front.FeedHandler
-	config       *config.Config
+	PostRepo       repository.PostRepository
+	CategoryRepo   repository.CategoryRepository
+	TagRepo        repository.TagRepository
+	feedHandler    *front.FeedHandler
+	sitemapHandler *front.SitemapHandler
+	config         *config.Config
 }
 
-func NewPostHandler(postRepo repository.PostRepository, categoryRepo repository.CategoryRepository, tagRepo repository.TagRepository, feedHandler *front.FeedHandler, config *config.Config) *PostHandler {
+func NewPostHandler(postRepo repository.PostRepository, categoryRepo repository.CategoryRepository, tagRepo repository.TagRepository, feedHandler *front.FeedHandler, sitemapHandler *front.SitemapHandler, config *config.Config) *PostHandler {
 	return &PostHandler{
-		PostRepo:     postRepo,
-		CategoryRepo: categoryRepo,
-		TagRepo:      tagRepo,
-		feedHandler:  feedHandler,
-		config:       config,
+		PostRepo:       postRepo,
+		CategoryRepo:   categoryRepo,
+		TagRepo:        tagRepo,
+		feedHandler:    feedHandler,
+		sitemapHandler: sitemapHandler,
+		config:         config,
 	}
 }
 
@@ -135,8 +137,8 @@ func (h *PostHandler) PostSave(ctx *gin.Context) {
 		view.AdminRender(data, ctx.Writer, "401", h.config.App)
 		return
 	}
-	// rss feed xml generate
 	h.feedHandler.GenerateFeedXml()
+	h.sitemapHandler.GenerateSitemap()
 
 	for _, tagId := range post.TagIds {
 		if err := h.TagRepo.IncrTagCount(strconv.Itoa(tagId)); err != nil {
@@ -158,6 +160,8 @@ func (h *PostHandler) PostDelete(ctx *gin.Context) {
 		return
 	}
 
+	h.feedHandler.GenerateFeedXml()
+	h.sitemapHandler.GenerateSitemap()
 	http.Redirect(ctx.Writer, ctx.Request, "/admin", http.StatusFound)
 }
 
