@@ -16,8 +16,15 @@ import (
 	"goblog/pkg/exception"
 )
 
-func InitGinConfig() *gin.Engine {
-	gin.SetMode(gin.ReleaseMode)
+func InitGinConfig(mode string) *gin.Engine {
+	switch mode {
+	case "debug":
+		gin.SetMode(gin.DebugMode)
+	case "test":
+		gin.SetMode(gin.TestMode)
+	default:
+		gin.SetMode(gin.ReleaseMode)
+	}
 	router := gin.Default()
 	router.Use(exception.ErrHandle)
 	router.Use(cors.Default())

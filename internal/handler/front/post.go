@@ -15,6 +15,16 @@ import (
 	"goblog/internal/repository"
 )
 
+var shanghai *time.Location
+
+func init() {
+	var err error
+	shanghai, err = time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		shanghai = time.FixedZone("CST", 8*3600)
+	}
+}
+
 type PostHandler struct {
 	PostRepo     repository.PostRepository
 	CategoryRepo repository.CategoryRepository
@@ -89,7 +99,6 @@ func (h *PostHandler) Index(ctx *gin.Context) {
 	for _, category := range categories {
 		categoryMap[category.Id] = category
 	}
-	shanghai, _ := time.LoadLocation("Asia/Shanghai")
 	for index, post := range posts {
 		posts[index].UpdatedAt = post.UpdatedAt.In(shanghai)
 		posts[index].CategoryName = categoryMap[post.CategoryId].Name
@@ -144,6 +153,7 @@ func (h *PostHandler) PostInfo(ctx *gin.Context) {
 	data["description"] = post.Description
 	data["identity"] = post.Identity
 	data["pageId"] = "posts-" + post.Id
+	data["canonical"] = h.conf.App.Host + "/posts/" + post.Identity
 	view.Render(data, ctx.Writer, "posts", h.conf.App)
 }
 
@@ -151,6 +161,14 @@ func (h *PostHandler) recordView(ctx *gin.Context, identity string, postId strin
 	if ctx.Request.Method != "GET" {
 		return
 	}
+	// quicklink / browser prefetch — don't count as a real visit
+	if purpose := ctx.GetHeader("Purpose"); purpose == "prefetch" {
+		return
+	}
+	if purpose := ctx.GetHeader("Sec-Purpose"); purpose == "prefetch" {
+		return
+	}
+
 	var visits []VisitInfo
 
 	cookie, err := ctx.Cookie("visitInfo")
@@ -159,19 +177,29 @@ func (h *PostHandler) recordView(ctx *gin.Context, identity string, postId strin
 	}
 
 	shouldCountVisit := true
-	for i, visit := range visits {
+	for _, visit := range visits {
 		if visit.ArticleID == identity {
 			if time.Since(visit.LastVisit) < 30*time.Minute {
 				shouldCountVisit = false
-				break
 			}
-			visits[i].LastVisit = time.Now()
+			break
 		}
 	}
 
 	if shouldCountVisit {
 		h.PostRepo.IncrView(postId)
-		visits = append(visits, VisitInfo{ArticleID: identity, LastVisit: time.Now()})
+		now := time.Now()
+		found := false
+		for i, visit := range visits {
+			if visit.ArticleID == identity {
+				visits[i].LastVisit = now
+				found = true
+				break
+			}
+		}
+		if !found {
+			visits = append(visits, VisitInfo{ArticleID: identity, LastVisit: now})
+		}
 		visitBytes, _ := json.Marshal(visits)
 		ctx.SetCookie("visitInfo", string(visitBytes), 3600, "/", "", false, true)
 	}

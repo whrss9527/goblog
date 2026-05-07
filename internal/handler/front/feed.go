@@ -15,12 +15,14 @@ import (
 type FeedHandler struct {
 	PostRepo repository.PostRepository
 	host     string
+	name     string
 }
 
-func NewFeedHandler(postRepo repository.PostRepository, host string) *FeedHandler {
+func NewFeedHandler(postRepo repository.PostRepository, host, name string) *FeedHandler {
 	return &FeedHandler{
 		PostRepo: postRepo,
 		host:     host,
+		name:     name,
 	}
 }
 
@@ -36,9 +38,9 @@ func (h *FeedHandler) GetFeedXml(ctx *gin.Context) {
 }
 
 func (h *FeedHandler) GetRobotTxt(ctx *gin.Context) {
-	file, err := os.ReadFile("./robot.txt")
+	file, err := os.ReadFile("./robots.txt")
 	if err != nil {
-		slog.Error("read robot.txt failed", "err", err)
+		slog.Error("read robots.txt failed", "err", err)
 		ctx.Writer.WriteHeader(500)
 		return
 	}
@@ -67,7 +69,7 @@ func (h *FeedHandler) GenerateFeedXml() {
 		})
 	}
 
-	feedXml, err := feed.GenerateFeed(articles)
+	feedXml, err := feed.GenerateFeed(articles, feed.FeedConfig{Title: h.name, Host: h.host})
 	if err != nil {
 		slog.Error("feed: generate failed", "err", err)
 		return

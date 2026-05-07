@@ -49,9 +49,13 @@ func (h *SitemapHandler) GenerateSitemap() {
 	}
 
 	for _, post := range posts {
+		lastmod := post.UpdatedAt
+		if lastmod.IsZero() {
+			lastmod = post.CreatedAt
+		}
 		urls = append(urls, sitemapURL{
 			Loc:        host + "/posts/" + post.Identity,
-			Lastmod:    post.CreatedAt.Format(time.DateOnly),
+			Lastmod:    lastmod.Format(time.DateOnly),
 			Changefreq: "monthly",
 			Priority:   "0.7",
 		})

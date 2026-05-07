@@ -31,7 +31,7 @@ func NewServer(config *config.Config) *Server {
 	}
 }
 
-func (server *Server) InitRouter(router *gin.Engine) {
+func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 	secret := server.config.App.SessionSecret
 	if secret == "" {
 		secret = "goblog-default-secret-change-me"
@@ -52,12 +52,12 @@ func (server *Server) InitRouter(router *gin.Engine) {
 		log.Fatal("init file repository failed: ", err)
 	}
 
-	feedHandler := front.NewFeedHandler(repo, server.config.App.Host)
+	feedHandler := front.NewFeedHandler(repo, server.config.App.Host, server.config.App.Name)
 	feedHandler.GenerateFeedXml()
 	sitemapHandler := front.NewSitemapHandler(repo, server.config.App.Host)
 	sitemapHandler.GenerateSitemap()
 	heatmapHandler := admin.NewHeatMapHandler(repo)
-	heatmapHandler.RunTask()
+	heatmapHandler.RunTask(repo.Done())
 	postHandler := admin.NewPostHandler(repo, repo, repo, feedHandler, sitemapHandler, server.config)
 	frontPostHandler := front.NewPostHandler(repo, repo, repo, server.config)
 	authHandler := admin.NewAuthHandler(repo, server.config)
@@ -73,9 +73,10 @@ func (server *Server) InitRouter(router *gin.Engine) {
 
 	loginLimiter := middleware.NewRateLimiter(5, 15*time.Minute)
 
+	router.StaticFS("/static/", http.Dir("static"))
+
 	manage := router.Group("admin")
 	{
-		manage.StaticFS("/static/", http.Dir("static"))
 		manage.GET("/login", authHandler.Login)
 		manage.POST("/register", authHandler.Register)
 		manage.POST("/sign-in", loginLimiter.Limit(), authHandler.Signin)
@@ -103,7 +104,6 @@ func (server *Server) InitRouter(router *gin.Engine) {
 	}
 	client := router.Group("")
 	{
-		client.StaticFS("/static/", http.Dir("static"))
 		client.GET("/", frontPostHandler.Index)
 		client.GET("/favicon.ico", faviconHandler)
 		client.GET("/posts/:identity", frontPostHandler.PostInfo)
@@ -115,6 +115,7 @@ func (server *Server) InitRouter(router *gin.Engine) {
 		client.GET("/feed", feedHandler.GetFeedXml)
 		client.GET("/sitemap.xml", sitemapHandler.GetSitemap)
 		client.GET("/intro", frontPostHandler.Intro)
-		client.GET("/robot.txt", feedHandler.GetRobotTxt)
+		client.GET("/robots.txt", feedHandler.GetRobotTxt)
 	}
+	return func() { repo.Close() }
 }

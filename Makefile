@@ -27,7 +27,7 @@ tidy:
 .PHONY: tar
 # pack file
 tar:
-	@tar zcvf  goblog-"${TIME}".tar.gz tpl/ static/ goblog conf/ startup.sh robot.txt
+	@tar zcvf  goblog-"${TIME}".tar.gz tpl/ static/ goblog conf/ startup.sh robots.txt
 
 .PHONY: fmt
 # make fmt

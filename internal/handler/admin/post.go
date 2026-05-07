@@ -140,10 +140,8 @@ func (h *PostHandler) PostSave(ctx *gin.Context) {
 	h.feedHandler.GenerateFeedXml()
 	h.sitemapHandler.GenerateSitemap()
 
-	for _, tagId := range post.TagIds {
-		if err := h.TagRepo.IncrTagCount(strconv.Itoa(tagId)); err != nil {
-			slog.Error("incr tag count failed", "tag_id", tagId, "err", err)
-		}
+	if err := h.TagRepo.IncrTagCount(""); err != nil {
+		slog.Error("recalc tag counts failed", "err", err)
 	}
 	http.Redirect(ctx.Writer, ctx.Request, "/admin", http.StatusFound)
 }
@@ -162,6 +160,9 @@ func (h *PostHandler) PostDelete(ctx *gin.Context) {
 
 	h.feedHandler.GenerateFeedXml()
 	h.sitemapHandler.GenerateSitemap()
+	if err := h.TagRepo.IncrTagCount(""); err != nil {
+		slog.Error("recalc tag counts failed", "err", err)
+	}
 	http.Redirect(ctx.Writer, ctx.Request, "/admin", http.StatusFound)
 }
 

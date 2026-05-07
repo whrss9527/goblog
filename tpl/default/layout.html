@@ -4,9 +4,17 @@
 <head>
     <meta charset="utf-8"/>
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>{{.title}}|{{.name}}</title>
+    <title>{{.title}} | {{.name}}</title>
     <meta name="description" content="{{.description}}"/>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    {{if .canonical}}<link rel="canonical" href="{{.canonical}}"/>{{end}}
+    <link rel="alternate" type="application/atom+xml" title="{{.name}}" href="/feed.xml"/>
+    <meta property="og:title" content="{{.title}}"/>
+    <meta property="og:description" content="{{.description}}"/>
+    <meta property="og:site_name" content="{{.name}}"/>
+    {{if .canonical}}<meta property="og:url" content="{{.canonical}}"/>{{end}}
+    <meta property="og:type" content="{{if .post}}article{{else}}website{{end}}"/>
+    <meta name="twitter:card" content="summary"/>
     <link rel="stylesheet" type="text/css" media="screen" href="{{.cdn}}/css/bootstrap.min.css"/>
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="stylesheet" href="{{.cdn}}/md/css/editormd.preview.css"/>
@@ -76,7 +84,7 @@
                         <img style="width:100%;height:100%; margin-top: -25px;" src="{{.cdn}}/logo.png">
                     </div>
                     <div style="font-size: 25px; margin-top: 0px;display:inline-block; margin-left: 3px; max-height: 50px;">
-                        了迹奇有没
+                        {{.name}}
                     </div>
                 </a>
             </div>

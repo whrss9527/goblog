@@ -145,6 +145,7 @@ func (r *FileRepository) GetPostsArchive() ([]*model.Post, error) {
 			Id:        p.Id,
 			Title:     p.Title,
 			CreatedAt: p.CreatedAt,
+			UpdatedAt: p.UpdatedAt,
 			Identity:  p.Identity,
 		})
 	}

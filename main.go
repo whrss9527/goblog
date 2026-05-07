@@ -8,7 +8,6 @@ import (
 	ginpkg "goblog/internal/pkg/gin"
 	"goblog/internal/pkg/view"
 	"goblog/internal/routers"
-	"goblog/pkg/cache"
 )
 
 var configPath string
@@ -25,8 +24,8 @@ func main() {
 
 	view.InitTemplates()
 	server := routers.NewServer(conf)
-	cache.InitBigCacheConfig()
-	router := ginpkg.InitGinConfig()
-	server.InitRouter(router)
+	router := ginpkg.InitGinConfig(conf.App.Mode)
+	cleanup := server.InitRouter(router)
+	defer cleanup()
 	ginpkg.RunGin(router, conf.Server.HttpPort, conf.Server.GracefulShutdownTimeout)
 }

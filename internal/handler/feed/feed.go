@@ -18,21 +18,23 @@ type Article struct {
 	Summary   string
 }
 
-func GenerateFeed(articles []Article) (string, error) {
-	// 对文章按发布日期排序
+type FeedConfig struct {
+	Title string
+	Host  string
+}
+
+func GenerateFeed(articles []Article, cfg FeedConfig) (string, error) {
 	sort.Slice(articles, func(i, j int) bool {
 		return articles[i].Published.After(articles[j].Published)
 	})
 
-	// 获取当前时间
 	now := time.Now()
 
-	// 初始化 feed
 	feed := &feeds.Feed{
-		Title:       "了迹奇有没",
-		Link:        &feeds.Link{Href: "https://whrss.com/"},
+		Title:       cfg.Title,
+		Link:        &feeds.Link{Href: cfg.Host + "/"},
 		Description: "",
-		Author:      &feeds.Author{Name: "whrss"},
+		Author:      &feeds.Author{Name: cfg.Title},
 		Created:     now,
 	}
 
