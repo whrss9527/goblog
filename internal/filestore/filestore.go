@@ -34,14 +34,20 @@ type FileRepository struct {
 	nextBookId     int
 
 	gitEnabled bool
+	gitMu      sync.Mutex
+	done       chan struct{}
 }
 
 func NewFileRepository(dataDir, gitRepo, gitToken string) (*FileRepository, error) {
 	r := &FileRepository{
-		dataDir:    dataDir,
-		postById:   make(map[string]*model.Post),
-		postBySlug: make(map[string]*model.Post),
-		views:      make(map[string]int),
+		dataDir:        dataDir,
+		postById:       make(map[string]*model.Post),
+		postBySlug:     make(map[string]*model.Post),
+		views:          make(map[string]int),
+		nextCategoryId: 1,
+		nextTagId:      1,
+		nextBookId:     1,
+		done:           make(chan struct{}),
 	}
 
 	if err := r.ensureDataDir(gitRepo, gitToken); err != nil {
@@ -353,25 +359,45 @@ func (r *FileRepository) flushViews() error {
 func (r *FileRepository) flushViewsLoop() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
-	for range ticker.C {
-		if err := r.flushViews(); err != nil {
-			slog.Error("flush views failed", "err", err)
+	for {
+		select {
+		case <-r.done:
+			return
+		case <-ticker.C:
+			if err := r.flushViews(); err != nil {
+				slog.Error("flush views failed", "err", err)
+			}
 		}
 	}
 }
 
-// pushViewsLoop periodically commits and pushes views.json upstream so the
-// view counts survive losing the local data dir. It runs at a coarser cadence
-// than flushViewsLoop to keep commit volume sane.
 func (r *FileRepository) pushViewsLoop() {
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
-	for range ticker.C {
-		if err := r.flushViews(); err != nil {
-			slog.Error("flush views failed", "err", err)
-			continue
+	for {
+		select {
+		case <-r.done:
+			return
+		case <-ticker.C:
+			if err := r.flushViews(); err != nil {
+				slog.Error("flush views failed", "err", err)
+				continue
+			}
+			r.gitCommitAndPushPath("views.json", "chore: update views.json")
 		}
-		r.gitCommitAndPushPath("views.json", "chore: update views.json")
+	}
+}
+
+func (r *FileRepository) Done() <-chan struct{} {
+	return r.done
+}
+
+func (r *FileRepository) Close() {
+	close(r.done)
+	if err := r.flushViews(); err != nil {
+		slog.Error("final flush views failed", "err", err)
+	} else {
+		slog.Info("views flushed on shutdown")
 	}
 }
 
@@ -383,6 +409,8 @@ func (r *FileRepository) gitCommitAndPushPath(path, message string) {
 		return
 	}
 	go func() {
+		r.gitMu.Lock()
+		defer r.gitMu.Unlock()
 		cmd := exec.Command("git", "-C", r.dataDir, "add", "--", path)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			slog.Error("git add failed", "err", err, "output", string(out), "path", path)
@@ -409,6 +437,8 @@ func (r *FileRepository) gitCommitAndPush(message string) {
 		return
 	}
 	go func() {
+		r.gitMu.Lock()
+		defer r.gitMu.Unlock()
 		cmd := exec.Command("git", "-C", r.dataDir, "add", "-A")
 		if out, err := cmd.CombinedOutput(); err != nil {
 			slog.Error("git add failed", "err", err, "output", string(out))

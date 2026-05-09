@@ -32,7 +32,7 @@ func (handler *HeatMapHandler) NewJob() *HeatMapGenerateJob {
 	}
 }
 
-func (handler *HeatMapHandler) RunTask() {
+func (handler *HeatMapHandler) RunTask(done <-chan struct{}) {
 	handler.NewJob().Run()
 	go func() {
 		c := cron.New(cron.WithSeconds())
@@ -44,8 +44,9 @@ func (handler *HeatMapHandler) RunTask() {
 		}
 		c.Start()
 		slog.Info("heatmap cron started")
-		defer c.Stop()
-		select {}
+		<-done
+		c.Stop()
+		slog.Info("heatmap cron stopped")
 	}()
 }
 

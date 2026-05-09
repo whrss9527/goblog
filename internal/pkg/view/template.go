@@ -86,10 +86,10 @@ func Render(data map[string]any, w http.ResponseWriter, tpl string, appConf *con
 	data["name"] = appConf.Name
 	data["cdn"] = appConf.Cdn
 	if _, ok := data["title"]; !ok {
-		data["title"] = "whrss"
+		data["title"] = appConf.Name
 	}
 	if _, ok := data["description"]; !ok {
-		data["description"] = "whrss"
+		data["description"] = appConf.Name
 	}
 
 	t, ok := frontTemplates[tpl]

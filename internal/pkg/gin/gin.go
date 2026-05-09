@@ -10,16 +10,25 @@ import (
 	"time"
 
 	"github.com/gin-contrib/cors"
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 
 	"goblog/pkg/exception"
 )
 
-func InitGinConfig() *gin.Engine {
-	gin.SetMode(gin.ReleaseMode)
+func InitGinConfig(mode string) *gin.Engine {
+	switch mode {
+	case "debug":
+		gin.SetMode(gin.DebugMode)
+	case "test":
+		gin.SetMode(gin.TestMode)
+	default:
+		gin.SetMode(gin.ReleaseMode)
+	}
 	router := gin.Default()
 	router.Use(exception.ErrHandle)
 	router.Use(cors.Default())
+	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	router.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, nil)
 	})

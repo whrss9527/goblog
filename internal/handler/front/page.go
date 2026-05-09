@@ -32,5 +32,6 @@ func (h *PageHandler) Page(ctx *gin.Context) {
 	data["description"] = page.Title
 	data["page"] = page
 	data["page_id"] = "page-" + pageId
+	data["canonical"] = h.config.App.Host + "/pages/" + pageId
 	view.Render(data, ctx.Writer, "pages", h.config.App)
 }

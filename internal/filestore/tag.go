@@ -68,25 +68,25 @@ func (r *FileRepository) AddTag(tag model.Tag) (int, error) {
 	return tag.Id, nil
 }
 
-func (r *FileRepository) IncrTagCount(id string) error {
+func (r *FileRepository) IncrTagCount(_ string) error {
+	return r.RecalcTagCounts()
+}
+
+func (r *FileRepository) RecalcTagCounts() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	count := 0
+	counts := make(map[int]int)
 	for _, post := range r.posts {
 		if post.Status != 1 {
 			continue
 		}
-		if r.postHasTag(post, id) {
-			count++
+		for _, tid := range post.TagIds {
+			counts[tid]++
 		}
 	}
-
-	for i, t := range r.tags {
-		if fmt.Sprintf("%d", t.Id) == id {
-			r.tags[i].Count = count
-			break
-		}
+	for i := range r.tags {
+		r.tags[i].Count = counts[r.tags[i].Id]
 	}
 	return r.saveJSON("tags.json", r.tags)
 }

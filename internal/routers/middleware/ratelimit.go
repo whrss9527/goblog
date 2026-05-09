@@ -21,10 +21,27 @@ type RateLimiter struct {
 }
 
 func NewRateLimiter(max int, window time.Duration) *RateLimiter {
-	return &RateLimiter{
+	rl := &RateLimiter{
 		records: make(map[string]*ipRecord),
 		max:     max,
 		window:  window,
+	}
+	go rl.cleanup()
+	return rl
+}
+
+func (rl *RateLimiter) cleanup() {
+	ticker := time.NewTicker(rl.window)
+	defer ticker.Stop()
+	for range ticker.C {
+		rl.mu.Lock()
+		now := time.Now()
+		for ip, rec := range rl.records {
+			if now.After(rec.resetAt) {
+				delete(rl.records, ip)
+			}
+		}
+		rl.mu.Unlock()
 	}
 }
 

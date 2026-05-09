@@ -73,9 +73,10 @@
 </div>
 <div class="gh-heatmap-tooltip" id="heatmap-tooltip"></div>
 
+<script id="heatmap-data" type="application/json">{{.heatmap}}</script>
 <script>
 (function() {
-    var rawData = JSON.parse('{{.heatmap}}');
+    var rawData = JSON.parse(document.getElementById('heatmap-data').textContent);
     var dataByDate = {};
     var yearSet = {};
     rawData.forEach(function(d) {
@@ -213,16 +214,22 @@
         summaryEl.textContent = label + '共发布 ' + totalPosts + ' 篇文章，活跃 ' + totalDays + ' 天';
     }
 
+    function esc(s) {
+        var d = document.createElement('div');
+        d.appendChild(document.createTextNode(s));
+        return d.innerHTML;
+    }
+
     function showDetail(date) {
         var entry = dataByDate[date];
         if (!entry || !entry.details) return;
-        var html = '<h4>' + date + ' 发布的文章</h4><ul>';
+        var html = '<h4>' + esc(date) + ' 发布的文章</h4><ul>';
         entry.details.forEach(function(d) {
             var time = d.date ? d.date.substring(11) : '';
             var words = d.value ? d.value + ' 字' : '';
-            html += '<li><a href="' + d.link + '">' + d.name + '</a>';
-            if (time) html += '<span class="detail-time">' + time + '</span>';
-            if (words) html += '<span class="detail-words">' + words + '</span>';
+            html += '<li><a href="' + esc(d.link) + '">' + esc(d.name) + '</a>';
+            if (time) html += '<span class="detail-time">' + esc(time) + '</span>';
+            if (words) html += '<span class="detail-words">' + esc(words) + '</span>';
             html += '</li>';
         });
         html += '</ul>';

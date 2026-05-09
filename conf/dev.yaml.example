@@ -4,7 +4,7 @@ app:
   mode: debug
   addr: localhost:9091
   host: http://localhost:9091
-  cdn: ""
+  cdn: "/static"
   music: ""
   # 用 `openssl rand -hex 32` 生成一个随机串，不要直接使用此处占位值
   session_secret: "change-me-to-a-random-string"

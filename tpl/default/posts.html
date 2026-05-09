@@ -48,11 +48,19 @@
     </div>
 
 </div>
+<script src="{{.cdn}}/md/lib/marked.min.js"></script>
+<script src="{{.cdn}}/md/lib/prettify.min.js"></script>
+<script src="{{.cdn}}/md/lib/raphael.min.js"></script>
+<script src="{{.cdn}}/md/lib/underscore.min.js"></script>
+<script src="{{.cdn}}/md/lib/sequence-diagram.min.js"></script>
+<script src="{{.cdn}}/md/lib/flowchart.min.js"></script>
+<script src="{{.cdn}}/md/lib/jquery.flowchart.min.js"></script>
+<script src="{{.cdn}}/md/editormd.js"></script>
 <script type="text/javascript">
 
     window.onload = function () {
         editormd.markdownToHTML("post-viewer", {
-            htmlDecode: "style,script,iframe",
+            htmlDecode: "style,iframe",
             emoji: true,
             taskList: true,
             tex: true,
