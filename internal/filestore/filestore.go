@@ -401,6 +401,30 @@ func (r *FileRepository) Close() {
 	}
 }
 
+// gitPushWithRetry runs `git push` from r.dataDir, retrying transient
+// failures with exponential backoff. The push includes any previously-failed
+// commits, so we never lose data — at worst the next successful push catches
+// up. Logged as Warn (not Error) on each attempt and only Error after all
+// retries are exhausted.
+func (r *FileRepository) gitPushWithRetry() {
+	const maxAttempts = 3
+	backoff := 5 * time.Second
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		cmd := exec.Command("git", "-C", r.dataDir, "push")
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+			return
+		}
+		if attempt == maxAttempts {
+			slog.Error("git push failed after retries", "attempts", maxAttempts, "err", err, "output", string(out))
+			return
+		}
+		slog.Warn("git push transient failure, will retry", "attempt", attempt, "err", err, "output", string(out), "next_delay", backoff)
+		time.Sleep(backoff)
+		backoff *= 3
+	}
+}
+
 // gitCommitAndPushPath stages exactly the given path (relative to dataDir),
 // commits it if there are changes, and pushes. Use this when you want a clean
 // commit scoped to a single file rather than gitCommitAndPush which adds -A.
@@ -425,10 +449,7 @@ func (r *FileRepository) gitCommitAndPushPath(path, message string) {
 			slog.Error("git commit failed", "err", err, "output", string(out))
 			return
 		}
-		cmd = exec.Command("git", "-C", r.dataDir, "push")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			slog.Error("git push failed", "err", err, "output", string(out))
-		}
+		r.gitPushWithRetry()
 	}()
 }
 
@@ -456,9 +477,6 @@ func (r *FileRepository) gitCommitAndPush(message string) {
 			return
 		}
 
-		cmd = exec.Command("git", "-C", r.dataDir, "push")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			slog.Error("git push failed", "err", err, "output", string(out))
-		}
+		r.gitPushWithRetry()
 	}()
 }
