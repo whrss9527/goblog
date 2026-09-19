@@ -35,11 +35,30 @@ func InitGinConfig(mode string) *gin.Engine {
 	return router
 }
 
+// OriginalMethodHeader is set by HeadAsGet on requests that arrived as HEAD.
+const OriginalMethodHeader = "X-Goblog-Original-Method"
+
+// HeadAsGet lets HEAD requests (uptime monitors, link checkers, curl -I) reach
+// the GET routes instead of ending in a 404. The routes see a copy of the
+// request; net/http still knows the original was a HEAD and leaves the body
+// out of the response. Handlers that count visits check OriginalMethodHeader.
+func HeadAsGet(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Header.Del(OriginalMethodHeader) // only ever set here
+		if r.Method == http.MethodHead {
+			r = r.Clone(r.Context())
+			r.Method = http.MethodGet
+			r.Header.Set(OriginalMethodHeader, http.MethodHead)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func RunGin(router *gin.Engine, port uint32, shutdownTimeout time.Duration) {
 	addr := fmt.Sprintf(":%d", port)
 	srv := &http.Server{
 		Addr:    addr,
-		Handler: router,
+		Handler: HeadAsGet(router),
 		// bound how long a client may take to send its request headers and how
 		// long idle keep-alive connections are kept around
 		ReadHeaderTimeout: 10 * time.Second,

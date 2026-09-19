@@ -64,6 +64,7 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 	frontPostHandler := front.NewPostHandler(repo, repo, repo, server.config)
 	searchHandler := front.NewSearchHandler(repo, repo, repo)
 	statsHandler := front.NewStatsHandler(repo, repo, repo, repo, server.config)
+	pwaHandler := front.NewPWAHandler(server.config)
 	if archive, err := repo.GetPostsArchive(); err == nil && len(archive) > 0 {
 		// footer "running for N days" counts from the very first post
 		view.SetSiteSince(archive[len(archive)-1].CreatedAt)
@@ -135,6 +136,9 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 		client.GET("/sitemap.xml", sitemapHandler.GetSitemap)
 		client.GET("/intro", frontPostHandler.Intro)
 		client.GET("/robots.txt", feedHandler.GetRobotTxt)
+		client.GET("/manifest.webmanifest", pwaHandler.Manifest)
+		client.GET("/sw.js", pwaHandler.ServiceWorker)
+		client.GET("/offline", pwaHandler.Offline)
 	}
 	return func() { repo.Close() }
 }

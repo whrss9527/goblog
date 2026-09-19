@@ -1,0 +1,70 @@
+{{define "content"}}
+<div class="container container-narrow">
+    <div class="notfound offline">
+        <p class="offline-icon" aria-hidden="true">📡</p>
+        <h1>现在没有网络</h1>
+        <p class="offline-tip">这个页面还没有离线副本。读过的文章会自动保存，下面这些现在就能打开：</p>
+
+        <ul class="offline-list" id="offline-list" aria-live="polite"></ul>
+        <p class="offline-empty" id="offline-empty" hidden>还没有保存任何文章 —— 联网时读过的文章，下次断网也能看。</p>
+        <noscript><p class="offline-empty">需要 JavaScript 才能列出已保存的文章。</p></noscript>
+
+        <div class="notfound-actions">
+            <button type="button" class="btn btn-primary js-only" id="offline-retry">重新连接</button>
+            <a href="/" class="btn">{{template "icon-home"}}回首页</a>
+        </div>
+    </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+(function () {
+    var list = document.getElementById('offline-list');
+    var empty = document.getElementById('offline-empty');
+    var retry = document.getElementById('offline-retry');
+
+    if (retry) {
+        retry.addEventListener('click', function () { location.reload(); });
+    }
+    // the connection came back while this page was open: load what was asked for
+    window.addEventListener('online', function () { location.reload(); });
+
+    function titleOf(html) {
+        var m = /<h1 class="article-title">([\s\S]*?)<\/h1>/.exec(html) || /<title>([\s\S]*?)<\/title>/.exec(html);
+        if (!m) { return ''; }
+        var el = document.createElement('textarea');
+        el.innerHTML = m[1].replace(/<[^>]+>/g, '');
+        return el.value.trim();
+    }
+
+    if (!list || !window.caches) { if (empty) { empty.hidden = false; } return; }
+    caches.open('goblog-pages').then(function (cache) {
+        return cache.keys().then(function (requests) {
+            var posts = requests.filter(function (r) { return /\/posts\/[^/]+$/.test(new URL(r.url).pathname); }).reverse();
+            return Promise.all(posts.map(function (request) {
+                return cache.match(request).then(function (response) { return response.text(); }).then(function (html) {
+                    return {url: new URL(request.url).pathname, title: titleOf(html)};
+                });
+            }));
+        });
+    }).then(function (items) {
+        var seen = {};
+        items = items.filter(function (item) {
+            if (!item.title || seen[item.url]) { return false; }
+            seen[item.url] = true;
+            return true;
+        });
+        if (!items.length) { empty.hidden = false; return; }
+        items.forEach(function (item) {
+            var li = document.createElement('li');
+            var a = document.createElement('a');
+            a.href = item.url;
+            a.textContent = item.title;
+            li.appendChild(a);
+            list.appendChild(li);
+        });
+    }).catch(function () { empty.hidden = false; });
+})();
+</script>
+{{end}}

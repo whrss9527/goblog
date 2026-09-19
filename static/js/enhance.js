@@ -601,6 +601,68 @@
         }
     }
 
+    /* ---------- PWA: service worker, offline hints, install ---------- */
+    function initPWA() {
+        if (!('serviceWorker' in navigator)) { return; }
+        var meta = document.querySelector('meta[name="goblog:sw"]');
+        if (!meta) {
+            // switched off on the server (app.pwa: false): retire workers installed
+            // earlier together with what they stored
+            navigator.serviceWorker.getRegistrations().then(function (regs) {
+                each(regs, function (reg) { reg.unregister(); });
+                if (!regs.length || !window.caches) { return; }
+                return caches.keys().then(function (names) {
+                    each(names, function (name) {
+                        if (name.indexOf('goblog-') === 0) { caches.delete(name); }
+                    });
+                });
+            }).catch(function () { /* nothing to retire */ });
+            return;
+        }
+
+        function register() {
+            navigator.serviceWorker.register(meta.getAttribute('content'), {scope: '/'})
+                .catch(function () { /* private mode, blocked storage…: the site works without it */ });
+        }
+        if (document.readyState === 'complete') { register(); } else { window.addEventListener('load', register); }
+
+        // only promise offline reading when a worker actually controls this page
+        function controlled() { return !!navigator.serviceWorker.controller; }
+        if (navigator.onLine === false && controlled() && location.pathname !== '/offline') {
+            toast('当前离线，显示的是之前保存的副本', {duration: 4000});
+        }
+        window.addEventListener('offline', function () {
+            if (controlled()) { toast('网络已断开，读过的文章仍然可以打开', {duration: 4000}); }
+        });
+        window.addEventListener('online', function () {
+            if (controlled()) { toast('网络已恢复'); }
+        });
+
+        // A quiet "install" link in the footer instead of the browser's own banner.
+        var box = document.getElementById('install-app');
+        var link = document.getElementById('install-app-link');
+        var deferred = null;
+        if (!box || !link) { return; }
+        window.addEventListener('beforeinstallprompt', function (e) {
+            e.preventDefault();
+            deferred = e;
+            box.hidden = false;
+        });
+        link.addEventListener('click', function (e) {
+            e.preventDefault();
+            if (!deferred) { return; }
+            deferred.prompt();
+            deferred.userChoice.then(function () {
+                deferred = null;
+                box.hidden = true;
+            });
+        });
+        window.addEventListener('appinstalled', function () {
+            box.hidden = true;
+            toast('已安装，可以从桌面直接打开了');
+        });
+    }
+
     // Shared with article.js and page-level scripts.
     window.goblog = {
         icons: ICONS,
@@ -628,6 +690,7 @@
         initShortcuts();
         highlightKeyword();
         initEasterEggs();
+        initPWA();
     }
 
     if (document.readyState === 'loading') {

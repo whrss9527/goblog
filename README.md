@@ -14,6 +14,8 @@
 - **优雅退出**：`SIGTERM` 触发，超时时间可配。
 - **服务端渲染 Markdown**：文章 HTML 随响应直出（首屏无白屏、无需 jQuery/editor.md、无 JS 也可读、爬虫可见），
   渲染结果与后台 editor.md 预览保持一致；含流程图 / 时序图 / 公式的文章自动回退到浏览器渲染。
+- **PWA / 离线阅读**：可安装到桌面与手机主屏；读过的文章自动保存，断网时照常打开，没读过的地址显示离线页并列出可读文章；
+  带指纹的静态资源缓存优先。`app.pwa: false` 一键关闭并自动注销已安装的 Service Worker。
 - **SEO**：canonical、Open Graph / Twitter Card（自动取文内首图）、JSON-LD（`BlogPosting` / `Blog`）、静态资源长缓存。
 - **多端适配**：前台无框架依赖（CSS 变量 + 原生 JS），手机 / 平板 / 桌面自适应，明暗主题跟随系统，
   文章目录在宽屏为粘性侧栏、窄屏为底部抽屉。版本变更见 [CHANGELOG.md](CHANGELOG.md)。
@@ -119,6 +121,7 @@ app:
   git_token: ""                # 私有 blog-data 仓库才需要填 PAT (Contents: Read)
   description: ""              # 可选：站点一句话简介，用于首页标题 / meta description / 结构化数据
   markdown_render: server      # 可选：server（默认，服务端直出 HTML）/ client（浏览器内 editor.md 渲染）
+  pwa: true                    # 可选：PWA / 离线阅读开关，默认开启；false 会让已安装的 Service Worker 自动注销
 
 server:
   http_port: 9091

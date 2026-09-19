@@ -34,6 +34,11 @@ tar:
 fmt:
 	@gofmt -s -w .
 
+.PHONY: icons
+# make icons, regenerate static/icons (PWA / home screen) from static/logo.png, needs python3 + pillow
+icons:
+	@python3 scripts/gen_icons.py
+
 .PHONY: clean
 # make clean
 clean:

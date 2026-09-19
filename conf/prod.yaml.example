@@ -19,6 +19,9 @@ app:
   # 文章 Markdown 在哪里渲染：server（默认，HTML 直出，首屏快、对 SEO 友好、无需 jQuery/editor.md）
   # 或 client（1.6 之前的方式，浏览器里用 editor.md 渲染）。含流程图/时序图/公式的文章始终回退为 client
   markdown_render: "server"
+  # PWA：可安装到桌面 / 主屏，读过的文章断网也能看（Service Worker）。默认开启；
+  # 改成 false 会同时让访客浏览器里已安装的 Service Worker 自动注销并清空缓存
+  pwa: true
 
 server:
   http_port: 9091

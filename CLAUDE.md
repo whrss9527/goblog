@@ -65,6 +65,13 @@ The Gin engine is initialized in `internal/pkg/gin/gin.go` (CORS, error handling
   and `json_ld` (see `internal/handler/front/seo.go`). `view.RenderStatus` derives `page_title` and the default `og_image`.
 - **Static caching**: `middleware.StaticCache` — fingerprinted URLs (`?v=`, from the `asset` template func) are immutable
   for a year, other static files are cached for a day.
+- **PWA**: `internal/handler/front/pwa.go` serves `/manifest.webmanifest` (generated from config), `/sw.js`
+  (`static/js/sw.js` with `self.__GOBLOG = {version, precache, offline}` prepended; the version is derived from the
+  fingerprints of the precached files) and `/offline`. Strategy: navigations network-first with the visited copy as
+  fallback, fingerprinted static files cache-first, other static files stale-while-revalidate; `/admin`, `/api`,
+  `/random`, feeds and cross-origin requests are never touched. `app.pwa: false` turns `/sw.js` into a worker that
+  clears the caches and unregisters itself. Icons in `static/icons` come from `static/logo.png` via `make icons`.
+  New files a page needs offline must be added to `precachedAssets`.
 - **Counters**: view counts (`views.json`) and likes (`likes.json`) live in memory, are flushed to the data dir every 5 minutes and committed/pushed hourly. Both are keyed by post slug and migrate on slug rename.
 - **JSON API**: `GET /api/search?q=` (instant search), `POST /api/posts/:identity/like`; both are rate limited per IP via `middleware.NewRateLimiter`. `GET /random` redirects to a random post.
 - **Cron jobs**: Heatmap data aggregation runs hourly via `robfig/cron`, writing `heatmap.txt`.

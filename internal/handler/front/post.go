@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"goblog/internal/config"
+	ginpkg "goblog/internal/pkg/gin"
 	"goblog/internal/pkg/model"
 	"goblog/internal/pkg/view"
 	"goblog/internal/repository"
@@ -248,8 +249,8 @@ func (h *PostHandler) PostInfo(ctx *gin.Context) {
 }
 
 func (h *PostHandler) recordView(ctx *gin.Context, identity string, postId string) {
-	if ctx.Request.Method != "GET" {
-		return
+	if ctx.Request.Method != "GET" || ctx.GetHeader(ginpkg.OriginalMethodHeader) != "" {
+		return // HEAD probes (monitors, link checkers) are not readers
 	}
 	// quicklink / browser prefetch — don't count as a real visit
 	if purpose := ctx.GetHeader("Purpose"); purpose == "prefetch" {

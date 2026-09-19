@@ -1,6 +1,7 @@
 package routers
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -382,6 +383,102 @@ func TestStaticCacheHeaders(t *testing.T) {
 		if got := get(t, h, tt.target).Header().Get("Cache-Control"); got != tt.want {
 			t.Errorf("GET %s: Cache-Control = %q, want %q", tt.target, got, tt.want)
 		}
+	}
+}
+
+func TestHeadRequestsDoNotCountAsViews(t *testing.T) {
+	h := ginpkg.HeadAsGet(newTestServer(t))
+
+	views := func() string {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/posts/hello", nil))
+		body := rec.Body.String()
+		i := strings.Index(body, `title="阅读 `)
+		if i < 0 {
+			t.Fatalf("view counter not found")
+		}
+		return body[i : i+len(`title="阅读 `)+4]
+	}
+	first := views() // the page shows the count before this visit is added
+	for i := 0; i < 3; i++ {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodHead, "/posts/hello", nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("HEAD /posts/hello = %d, want 200", rec.Code)
+		}
+	}
+	if second := views(); !strings.Contains(first, "阅读 0 ") || !strings.Contains(second, "阅读 1 ") {
+		t.Errorf("the three HEAD probes must not count as views: first %q, second %q", first, second)
+	}
+}
+
+func TestPWAEndpoints(t *testing.T) {
+	h := newTestServer(t)
+
+	manifest := get(t, h, "/manifest.webmanifest")
+	if manifest.Code != http.StatusOK || !strings.HasPrefix(manifest.Header().Get("Content-Type"), "application/manifest+json") {
+		t.Fatalf("manifest: status %d, type %q", manifest.Code, manifest.Header().Get("Content-Type"))
+	}
+	var m struct {
+		Name        string `json:"name"`
+		ShortName   string `json:"short_name"`
+		Description string `json:"description"`
+		StartURL    string `json:"start_url"`
+		Display     string `json:"display"`
+		Icons       []struct {
+			Src, Sizes, Purpose string
+		} `json:"icons"`
+	}
+	if err := json.Unmarshal(manifest.Body.Bytes(), &m); err != nil {
+		t.Fatalf("manifest is not JSON: %v", err)
+	}
+	if m.Name != "测试博客" || m.Description != "写给测试的博客" || m.StartURL != "/" || m.Display != "standalone" || len(m.Icons) != 3 {
+		t.Errorf("unexpected manifest: %+v", m)
+	}
+	for _, icon := range m.Icons {
+		if rec := get(t, h, icon.Src); rec.Code != http.StatusOK || !strings.Contains(icon.Src, "?v=") {
+			t.Errorf("icon %q: status %d, must exist and be fingerprinted", icon.Src, rec.Code)
+		}
+	}
+
+	sw := get(t, h, "/sw.js")
+	body := sw.Body.String()
+	if sw.Code != http.StatusOK || !strings.HasPrefix(sw.Header().Get("Content-Type"), "text/javascript") || sw.Header().Get("Cache-Control") != "no-cache" {
+		t.Fatalf("sw.js: status %d, headers %v", sw.Code, sw.Header())
+	}
+	for _, want := range []string{
+		`self.__GOBLOG = {"offline":"/offline","precache":["/static/css/style.css?v=`, `"version":"`, "addEventListener('fetch'",
+		`/^\/(admin|api|random|feed|`, // what the worker must never touch
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("sw.js does not contain %q", want)
+		}
+	}
+
+	offline := get(t, h, "/offline")
+	if offline.Code != http.StatusOK || !strings.Contains(offline.Body.String(), "现在没有网络") || !strings.Contains(offline.Body.String(), `content="noindex"`) {
+		t.Errorf("offline page: status %d", offline.Code)
+	}
+
+	home := get(t, h, "/").Body.String()
+	for _, want := range []string{`<link rel="manifest" href="/manifest.webmanifest"/>`, `<meta name="goblog:sw" content="/sw.js"/>`, `rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png?v=`} {
+		if !strings.Contains(home, want) {
+			t.Errorf("home page does not contain %q", want)
+		}
+	}
+}
+
+func TestPWACanBeSwitchedOff(t *testing.T) {
+	off := false
+	h := newTestServer(t, func(c *config.Config) { c.App.PWA = &off })
+
+	home := get(t, h, "/").Body.String()
+	if strings.Contains(home, "goblog:sw") || strings.Contains(home, `rel="manifest"`) {
+		t.Errorf("pages must not advertise the worker or the manifest when app.pwa is false")
+	}
+	sw := get(t, h, "/sw.js").Body.String()
+	if !strings.Contains(sw, "registration.unregister()") || strings.Contains(sw, "__GOBLOG") {
+		t.Errorf("sw.js must become the retiring worker: %s", sw)
 	}
 }
 

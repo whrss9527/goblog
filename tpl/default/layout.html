@@ -15,6 +15,14 @@
     {{if .canonical}}<link rel="canonical" href="{{.canonical}}"/>{{end}}
     <link rel="alternate" type="application/atom+xml" title="{{.name}}" href="/feed.xml"/>
     <link rel="icon" href="/favicon.ico"/>
+    <link rel="apple-touch-icon" href="{{asset "/static/icons/apple-touch-icon.png"}}"/>
+    {{- if .pwa}}
+    <link rel="manifest" href="/manifest.webmanifest"/>
+    <meta name="mobile-web-app-capable" content="yes"/>
+    <meta name="apple-mobile-web-app-title" content="{{.name}}"/>
+    <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+    <meta name="goblog:sw" content="/sw.js"/>
+    {{- end}}
     <meta property="og:title" content="{{.title}}"/>
     <meta property="og:description" content="{{.description}}"/>
     <meta property="og:site_name" content="{{.name}}"/>
@@ -75,7 +83,8 @@
     <div class="container header-inner">
         <div class="brand">
             <a class="brand-avatar" href="/intro" title="关于作者" aria-label="关于作者">
-                <img src="{{.cdn}}/logo.png" alt="" width="40" height="40">
+                {{/* local and fingerprinted (not {{.cdn}}): cached for good, and there when offline */}}
+                <img src="{{asset "/static/icons/icon-192.png"}}" alt="" width="40" height="40" decoding="async">
             </a>
             <a class="brand-name" href="/">{{.name}}</a>
         </div>
@@ -131,6 +140,7 @@
             <span><a href="/feed.xml">RSS</a></span>
             <span><a href="/sitemap.xml">Sitemap</a></span>
             <span class="footer-shortcuts"><a href="#" id="shortcut-help-link">快捷键 <kbd>?</kbd></a></span>
+            <span id="install-app" hidden><a href="#" id="install-app-link">安装到桌面</a></span>
         </p>
     </div>
 </footer>

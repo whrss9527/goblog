@@ -1669,6 +1669,39 @@ ol.linenums {
     opacity: 1;
 }
 
+/* offline fallback page (served by the service worker) */
+.offline .offline-icon {
+    margin: 0 0 8px;
+    font-size: 52px;
+    line-height: 1;
+}
+
+.offline .offline-tip,
+.offline .offline-empty {
+    max-width: 34em;
+    margin: 0 auto 18px;
+    color: var(--text-2);
+}
+
+.offline-list {
+    max-width: 34em;
+    margin: 0 auto 22px;
+    padding: 0;
+    list-style: none;
+    text-align: left;
+}
+
+.offline-list li + li {
+    border-top: 1px solid var(--border);
+}
+
+.offline-list a {
+    display: block;
+    padding: 11px 6px;
+    color: var(--text);
+    overflow-wrap: anywhere;
+}
+
 /* notices */
 .notice {
     display: flex;
@@ -3139,6 +3172,7 @@ html:not(.js) .js-only {
     .lightbox-btn:hover { background: rgba(255, 255, 255, 0.24); }
     .toast-close:hover { opacity: 1; }
     .archive-post-link:hover { color: var(--accent); }
+    .offline-list a:hover { color: var(--accent); }
     .archive-post-item:hover::before { background: var(--accent); transform: scale(1.2); }
     .tag-pill:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
     .book-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); border-color: var(--border-strong); }

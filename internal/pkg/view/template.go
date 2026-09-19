@@ -78,7 +78,7 @@ func InitTemplates() {
 		frontTemplates = make(map[string]*template.Template)
 		adminTemplates = make(map[string]*template.Template)
 
-		frontPages := []string{"index", "posts", "tags", "pages", "about", "archive", "reading", "stats", "404"}
+		frontPages := []string{"index", "posts", "tags", "pages", "about", "archive", "reading", "stats", "404", "offline"}
 		for _, page := range frontPages {
 			tplPaths := []string{
 				"tpl/default/layout.html",
@@ -155,6 +155,7 @@ func RenderStatus(status int, data map[string]any, w http.ResponseWriter, tpl st
 	data["cdn"] = appConf.Cdn
 	data["host"] = appConf.Host
 	data["version"] = version.Version
+	data["pwa"] = appConf.PWAEnabled()
 	now := time.Now()
 	data["year"] = now.Year()
 	data["site_days"] = siteDays(now)

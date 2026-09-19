@@ -37,6 +37,10 @@ type (
 		// Description is the one-line summary of the site, used for the home
 		// page's title, its <meta name="description"> and structured data.
 		Description string `mapstructure:"description"`
+		// PWA switches the web app manifest and the service worker (offline
+		// reading, instant static assets) on or off. Unset means on; setting it
+		// to false also retires service workers browsers already installed.
+		PWA *bool `mapstructure:"pwa"`
 	}
 	ServerConfig struct {
 		HttpPort                uint32        `mapstructure:"http_port"`
@@ -52,6 +56,11 @@ server:
   graceful_shutdown_timeout: 15s
 `)
 )
+
+// PWAEnabled reports whether the site should offer its service worker.
+func (c *AppConfig) PWAEnabled() bool {
+	return c == nil || c.PWA == nil || *c.PWA
+}
 
 func LoadConfig(config string) *Config {
 	v := viper.New()
