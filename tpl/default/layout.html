@@ -7,6 +7,9 @@
     <title>{{.title}} | {{.name}}</title>
     <meta name="description" content="{{.description}}"/>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="goblog {{.version}}"/>
+    <meta name="color-scheme" content="light dark"/>
+    {{if .noindex}}<meta name="robots" content="noindex"/>{{end}}
     {{if .canonical}}<link rel="canonical" href="{{.canonical}}"/>{{end}}
     <link rel="alternate" type="application/atom+xml" title="{{.name}}" href="/feed.xml"/>
     <meta property="og:title" content="{{.title}}"/>
@@ -15,92 +18,68 @@
     {{if .canonical}}<meta property="og:url" content="{{.canonical}}"/>{{end}}
     <meta property="og:type" content="{{if .post}}article{{else}}website{{end}}"/>
     <meta name="twitter:card" content="summary"/>
-    <link rel="stylesheet" type="text/css" media="screen" href="{{.cdn}}/css/bootstrap.min.css"/>
-    <link rel="stylesheet" href="/static/css/style.css">
-    <link rel="stylesheet" href="{{.cdn}}/md/css/editormd.preview.css"/>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/quicklink/2.3.0/quicklink.umd.js"></script>
     <script>
-        let originalTitle = document.title;
-        document.addEventListener('visibilitychange', function() {
-            if(document.visibilityState === 'hidden') {
-                document.title = '你别走吖 Σ(っ °д° ;)っ';
-            }
-            else {
-                document.title = '你可算回来了٩(๛ ˘ ³˘)۶';
-                // 在一段时间后恢复原标题
-                setTimeout(function() {
-                    document.title = originalTitle;
-                }, 2000);
-            }
-        });
-        window.addEventListener('load', () => {
-            quicklink.listen();
-        });
-
+        /* Apply the theme before first paint (no light flash in dark mode).
+           Saved choice wins; otherwise follow the OS preference. */
+        (function () {
+            var theme = 'light';
+            try {
+                var saved = localStorage.getItem('theme');
+                if (saved === 'dark' || saved === 'light') {
+                    theme = saved;
+                } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    theme = 'dark';
+                }
+            } catch (e) { /* storage blocked: stay light */ }
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
     </script>
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback" defer></script>
+    <link rel="stylesheet" type="text/css" media="screen" href="{{.cdn}}/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="{{asset "/static/css/style.css"}}">
+    {{block "head" .}}{{end}}
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-SXYGHHQ02D"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+
+        function gtag() {
+            dataLayer.push(arguments);
+        }
+
+        gtag('js', new Date());
+        gtag('config', 'G-SXYGHHQ02D');
+    </script>
 </head>
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-SXYGHHQ02D"></script>
-<script>
-    window.dataLayer = window.dataLayer || [];
-
-    function gtag() {
-        dataLayer.push(arguments);
-    }
-
-    gtag('js', new Date());
-
-    gtag('config', 'G-SXYGHHQ02D');
-
-    window.onloadTurnstileCallback = function () {
-        turnstile.render('#example-container', {
-            sitekey: '0x4AAAAAAALktj8ucA6FlYOS',
-            callback: function(token) {
-                console.log(`Challenge Success ${token}`);
-            },
-        });
-    };
-
-</script>
 
 <body>
 <div id="reading-progress"></div>
 <header>
     <nav class="navbar navbar-default" id="navbar">
         <div class="container">
-            <div class="navbar-header" style="padding-bottom:-10px;">
+            <div class="navbar-header">
                 <button type="button" class="navbar-toggle collapsed" data-toggle="collapse"
-                        data-target="#header-navbar" aria-expanded="false">
-                    <span class="sr-only"></span>
+                        data-target="#header-navbar" aria-expanded="false" aria-label="展开导航">
+                    <span class="sr-only">展开导航</span>
                     <span class="icon-bar"></span>
                     <span class="icon-bar"></span>
                     <span class="icon-bar"></span>
                 </button>
-                <a class="logo"
-                   style="float:left;display:inline-block;margin-left:10px; margin-top: 5px; max-height: 60px; padding-bottom:0px;"
-                   href="../intro">
-                    <div style="width:50px;height:50px;align-items: center;display:inline-block;  background-size: contain; padding-bottom:-35px; ">
-                        <img style="width:100%;height:100%; margin-top: -25px;" src="{{.cdn}}/logo.png">
-                    </div>
-                    <div style="font-size: 25px; margin-top: 0px;display:inline-block; margin-left: 3px; max-height: 50px;">
-                        {{.name}}
-                    </div>
-                </a>
+                <div class="logo">
+                    <a class="logo-avatar" href="/intro" title="关于作者"><img src="{{.cdn}}/logo.png" alt="" width="50" height="50"></a>
+                    <a class="logo-name" href="/">{{.name}}</a>
+                    <a class="logo-rss" href="/feed.xml" title="RSS 订阅" aria-label="RSS 订阅">{{template "icon-rss"}}</a>
+                </div>
             </div>
             <div class="collapse navbar-collapse" id="header-navbar">
-                <form class="navbar-form nav navbar-form navbar-right search-nav" action="/" method="GET">
+                <form class="navbar-form nav navbar-form navbar-right search-nav" action="/" method="GET" role="search">
                     <div class="input-group">
-                        <input type="text" name="keyword" class="form-control" placeholder="请输入关键字" maxlength="20"
-                               autocomplete="off">
+                        <input type="search" name="keyword" class="form-control" placeholder="请输入关键字" maxlength="20"
+                               autocomplete="off" aria-label="搜索文章" value="{{.keyword}}">
                         <span class="input-group-btn">
                                 <button type="submit" class="btn btn-default btn-search">搜索</button>
                             </span>
                     </div>
-
                 </form>
-                <a href="/feed.xml"><i class="fa fa-rss fa-inverse"
-                                   style="color:orange;font-size: 20px;margin-top: 10px;"></i></a>
                 <ul class="nav navbar-nav navbar-right">
                     <li><a href="/">首页</a></li>
                     <li><a href="/archive">归档</a></li>
@@ -108,7 +87,7 @@
                     <li><a href="/reading">阅读</a></li>
                     <li><a href="/pages/about">关于</a></li>
                     <li>
-                        <span id="dark-toggle" class="theme-switch">
+                        <span id="dark-toggle" class="theme-switch" role="button" tabindex="0" aria-label="切换明暗主题">
                             <span class="theme-switch-knob">
                                 <span class="theme-switch-sun">☀️</span>
                                 <span class="theme-switch-moon">🌙</span>
@@ -121,18 +100,21 @@
     </nav>
 </header>
 
+<main id="main">
 {{template "content" .}}
+</main>
 
 <div class="footer">
     <div class="container">
-        <p>whrss.com © 2023 | Powered by <a href="https://github.com/whrss9527">whrss</a> | Based on <a
+        <p>whrss.com © 2022–{{.year}} | Powered by <a href="https://github.com/whrss9527">whrss</a> | Based on <a
                 href="https://getbootstrap.com/">Bootstrap</a></p>
     </div>
 </div>
 
 <script src="{{.cdn}}/js/jquery.min.js"></script>
 <script src="{{.cdn}}/js/bootstrap.min.js"></script>
-<script src="/static/js/enhance.js"></script>
+<script src="{{asset "/static/js/enhance.js"}}"></script>
+{{block "scripts" .}}{{end}}
 
 </body>
 

@@ -3,6 +3,7 @@ package routers
 import (
 	"log"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -74,6 +75,10 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 	loginLimiter := middleware.NewRateLimiter(5, 15*time.Minute)
 
 	router.StaticFS("/static/", http.Dir("static"))
+	// Book covers live in the content repo (data_dir/covers) and are referenced
+	// as /covers/<file> from books.json.
+	router.Static("/covers", filepath.Join(server.config.App.DataDir, "covers"))
+	router.NoRoute(front.NotFound(server.config.App))
 
 	manage := router.Group("admin")
 	{

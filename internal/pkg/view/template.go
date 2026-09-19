@@ -1,14 +1,20 @@
 package view
 
 import (
+	"bytes"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"goblog/internal/config"
+	"goblog/internal/version"
 )
 
 var funcMap = template.FuncMap{
@@ -25,6 +31,30 @@ var funcMap = template.FuncMap{
 		}
 		return fmt.Sprintf("font-size:%s", sizes[count])
 	},
+	"asset": AssetURL,
+}
+
+// assetHashes caches content fingerprints of local static files, keyed by URL path.
+var assetHashes sync.Map
+
+// AssetURL appends a content fingerprint (?v=<hash>) to a local /static/ URL so
+// browsers and CDNs can cache it aggressively while still picking up new
+// releases immediately. Unknown or unreadable files are returned unchanged.
+func AssetURL(urlPath string) string {
+	if v, ok := assetHashes.Load(urlPath); ok {
+		return v.(string)
+	}
+	result := urlPath
+	if strings.HasPrefix(urlPath, "/static/") {
+		if data, err := os.ReadFile(strings.TrimPrefix(urlPath, "/")); err == nil {
+			sum := sha1.Sum(data)
+			result = urlPath + "?v=" + hex.EncodeToString(sum[:])[:10]
+		} else {
+			slog.Warn("asset fingerprint failed", "path", urlPath, "err", err)
+		}
+	}
+	assetHashes.Store(urlPath, result)
+	return result
 }
 
 var (
@@ -45,6 +75,8 @@ func InitTemplates() {
 				"tpl/default/layout.html",
 				"tpl/default/" + page + ".html",
 				"tpl/default/heatmap.html",
+				"tpl/default/icons.html",
+				"tpl/default/markdown.html",
 			}
 			t, err := template.New("layout.html").Funcs(funcMap).ParseFiles(tplPaths...)
 			if err != nil {
@@ -82,14 +114,30 @@ func InitTemplates() {
 	})
 }
 
+// Render renders a front template with HTTP 200.
 func Render(data map[string]any, w http.ResponseWriter, tpl string, appConf *config.AppConfig) {
+	RenderStatus(http.StatusOK, data, w, tpl, appConf)
+}
+
+// RenderStatus renders a front template with the given HTTP status code. The
+// template is executed into a buffer first so a failing template never leaves
+// a half-written page behind.
+func RenderStatus(status int, data map[string]any, w http.ResponseWriter, tpl string, appConf *config.AppConfig) {
 	data["name"] = appConf.Name
 	data["cdn"] = appConf.Cdn
+	data["host"] = appConf.Host
+	data["version"] = version.Version
+	data["year"] = time.Now().Year()
 	if _, ok := data["title"]; !ok {
 		data["title"] = appConf.Name
 	}
 	if _, ok := data["description"]; !ok {
 		data["description"] = appConf.Name
+	}
+	// Keys printed unconditionally by the layout must exist, otherwise
+	// html/template prints "<no value>".
+	if _, ok := data["keyword"]; !ok {
+		data["keyword"] = ""
 	}
 
 	t, ok := frontTemplates[tpl]
@@ -98,8 +146,16 @@ func Render(data map[string]any, w http.ResponseWriter, tpl string, appConf *con
 		http.Error(w, "page not found", http.StatusNotFound)
 		return
 	}
-	if err := t.Execute(w, data); err != nil {
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, data); err != nil {
 		slog.Error("render front template failed", "tpl", tpl, "err", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	if _, err := buf.WriteTo(w); err != nil {
+		slog.Debug("write response failed", "tpl", tpl, "err", err)
 	}
 }
 

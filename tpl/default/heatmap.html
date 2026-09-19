@@ -94,6 +94,7 @@
     var allOpt = document.createElement('option');
     allOpt.value = 'recent'; allOpt.textContent = '最近一年';
     select.insertBefore(allOpt, select.firstChild);
+    select.value = 'recent';
 
     var monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
     var tooltip = document.getElementById('heatmap-tooltip');

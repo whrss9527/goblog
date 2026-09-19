@@ -1,61 +1,24 @@
+{{define "head"}}{{template "markdown-head" .}}{{end}}
+
 {{define "content"}}
 <div class="container">
     <div class="content-wrap">
         <div class="content">
             <header class="article-header">
-                <h1 class="article-title"><a href="">{{.page.Title}}</a></h1>
-
+                <h1 class="article-title">{{.page.Title}}</h1>
             </header>
 
             <article class="article-content">
-                <div id="page-viewer">
+                <div id="page-viewer" data-allow-script="1">
                     <textarea id="append-test" style="display:none;">{{.page.Content}}</textarea>
                 </div>
-
+                <noscript><p class="noscript-tip">本页需要启用 JavaScript 才能渲染正文。</p></noscript>
             </article>
-            <script>
-            (function() {
-                var giscusTheme = (localStorage.getItem('theme') === 'dark') ? 'dark' : 'light';
-                var s = document.createElement('script');
-                s.src = 'https://giscus.app/client.js';
-                s.setAttribute('data-repo', 'whrss9527/blog-comments');
-                s.setAttribute('data-repo-id', 'R_kgDOI5Sj3w');
-                s.setAttribute('data-category-id', 'DIC_kwDOI5Sj384CT-Us');
-                s.setAttribute('data-mapping', 'pathname');
-                s.setAttribute('data-strict', '0');
-                s.setAttribute('data-reactions-enabled', '1');
-                s.setAttribute('data-emit-metadata', '0');
-                s.setAttribute('data-input-position', 'top');
-                s.setAttribute('data-theme', giscusTheme);
-                s.setAttribute('data-lang', 'zh-CN');
-                s.setAttribute('crossorigin', 'anonymous');
-                s.async = true;
-                document.currentScript.parentNode.insertBefore(s, document.currentScript);
-            })();
-            </script>
+            {{template "comments" .}}
         </div>
 
     </div>
 </div>
-<script src="{{.cdn}}/md/lib/marked.min.js"></script>
-<script src="{{.cdn}}/md/lib/prettify.min.js"></script>
-<script src="{{.cdn}}/md/lib/raphael.min.js"></script>
-<script src="{{.cdn}}/md/lib/underscore.min.js"></script>
-<script src="{{.cdn}}/md/lib/sequence-diagram.min.js"></script>
-<script src="{{.cdn}}/md/lib/flowchart.min.js"></script>
-<script src="{{.cdn}}/md/lib/jquery.flowchart.min.js"></script>
-<script src="{{.cdn}}/md/editormd.js"></script>
-<script type="text/javascript">
-
-    window.onload = function () {
-        let pageViewer = editormd.markdownToHTML("page-viewer", {
-            htmlDecode: "style,script,iframe",  // you can filter tags decode
-            emoji: true,
-            taskList: true,
-            tex: true,  // 默认不解析
-            flowChart: true,  // 默认不解析
-            sequenceDiagram: true,  // 默认不解析
-        });
-    }
-</script>
 {{end}}
+
+{{define "scripts"}}{{template "markdown-scripts" .}}{{end}}

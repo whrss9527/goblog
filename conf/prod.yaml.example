@@ -7,8 +7,8 @@ app:
   host: https://your-domain.example.com
   cdn: "https://pub-191902ac1a1242aa9d4671d65604ad0c.r2.dev"
   music: "394501952"
-  # !! 不要把这个值发到任何聊天工具，每台服务器一份独立的随机字符串
-  session_secret: "2f0886b6ed0c406606555574a967d0a5357facc1db6c71a745e9ac7aea2300a9"
+  # !! 用 `openssl rand -hex 32` 生成；不要提交真实值，也不要发到任何聊天工具，每台服务器一份独立的随机字符串
+  session_secret: "change-me-run-openssl-rand-hex-32"
   # 服务器上博客内容仓库 clone 到的目录，需可写
   data_dir: "/var/lib/goblog/data"
   git_repo: "https://github.com/whrss9527/blog-data.git"

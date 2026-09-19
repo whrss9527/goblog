@@ -1,6 +1,8 @@
 package front
 
 import (
+	"encoding/json"
+	"html/template"
 	"log/slog"
 	"os"
 
@@ -29,6 +31,10 @@ func (handler *TagHandler) Tag(ctx *gin.Context) {
 		slog.Error("read heatmap failed", "err", err)
 		heatmap = []byte("[]")
 	}
+	if !json.Valid(heatmap) {
+		slog.Error("heatmap.txt is not valid JSON, ignoring")
+		heatmap = []byte("[]")
+	}
 	tags, err := handler.TagRepo.GetTags()
 	if err != nil {
 		slog.Error("get tags failed", "err", err)
@@ -39,6 +45,9 @@ func (handler *TagHandler) Tag(ctx *gin.Context) {
 	data["title"] = "标签"
 	data["description"] = "了迹奇有没的博客标签"
 	data["tags"] = tags
-	data["heatmap"] = string(heatmap)
+	// template.JS keeps html/template from re-quoting the JSON document as a JS
+	// string (which made JSON.parse return a string and broke the heatmap).
+	// The payload is produced by encoding/json, which escapes <, > and &.
+	data["heatmap"] = template.JS(heatmap)
 	view.Render(data, ctx.Writer, "tags", handler.config.App)
 }

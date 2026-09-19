@@ -24,7 +24,7 @@ func (h *PageHandler) Page(ctx *gin.Context) {
 	pageId := ctx.Param("id")
 	page, err := h.PageRepo.GetPage(pageId)
 	if err != nil {
-		view.Render(make(map[string]any), ctx.Writer, "404", h.config.App)
+		RenderNotFound(ctx, h.config.App)
 		return
 	}
 	data := make(map[string]any)

@@ -3,8 +3,8 @@ package front
 import (
 	"encoding/json"
 	"log/slog"
+	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -107,41 +107,52 @@ func (h *PostHandler) Index(ctx *gin.Context) {
 	data["posts"] = posts
 	data["categories"] = categories
 	data["page"] = page
-	data["pre_url"] = h.getPageUrl(categoryId, tagId, strconv.Itoa(prePage))
-	data["next_url"] = h.getPageUrl(categoryId, tagId, strconv.Itoa(nextPage))
+	data["pre_url"] = h.getPageUrl(categoryId, tagId, keyword, prePage)
+	data["next_url"] = h.getPageUrl(categoryId, tagId, keyword, nextPage)
 	data["has_more"] = hasMore
 	data["total"] = total
+	data["keyword"] = keyword
 	view.Render(data, ctx.Writer, "index", h.conf.App)
 }
 
-func (h *PostHandler) getPageUrl(categoryId string, tagId string, page string) string {
-	var params []string
-	if len(categoryId) > 0 {
-		params = append(params, "category_id="+categoryId)
+// getPageUrl builds a site-relative list URL that keeps the active filters
+// (category, tag, search keyword) while moving between pages.
+func (h *PostHandler) getPageUrl(categoryId, tagId, keyword string, page int) string {
+	q := url.Values{}
+	if categoryId != "" {
+		q.Set("category_id", categoryId)
 	}
-	if len(tagId) > 0 {
-		params = append(params, "tag_id="+tagId)
+	if tagId != "" {
+		q.Set("tag_id", tagId)
 	}
-	params = append(params, "page="+page)
-	return h.conf.App.Host + "?" + strings.Join(params, "&")
+	if keyword != "" {
+		q.Set("keyword", keyword)
+	}
+	if page > 1 {
+		q.Set("page", strconv.Itoa(page))
+	}
+	if len(q) == 0 {
+		return "/"
+	}
+	return "/?" + q.Encode()
 }
 
 func (h *PostHandler) PostInfo(ctx *gin.Context) {
 	identity := ctx.Param("identity")
 
 	post, err := h.PostRepo.GetPostByIdentity(identity)
-	if err != nil {
-		view.Render(make(map[string]any), ctx.Writer, "404", h.conf.App)
+	if err != nil || post.Status != 1 {
+		RenderNotFound(ctx, h.conf.App)
 		return
 	}
 	category, err := h.CategoryRepo.GetCategory(post.CategoryId)
 	if err != nil {
-		view.Render(make(map[string]any), ctx.Writer, "404", h.conf.App)
+		RenderNotFound(ctx, h.conf.App)
 		return
 	}
 	tags, err := h.TagRepo.GetTagsByIds(post.TagIds)
 	if err != nil {
-		view.Render(make(map[string]any), ctx.Writer, "404", h.conf.App)
+		RenderNotFound(ctx, h.conf.App)
 		return
 	}
 	h.recordView(ctx, identity, post.Id)

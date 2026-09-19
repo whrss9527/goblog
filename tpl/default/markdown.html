@@ -1,0 +1,113 @@
+{{/*
+  Client-side Markdown rendering (editor.md) shared by posts.html and pages.html.
+
+  - "markdown-head"    : preview stylesheet, only needed on article-like pages.
+  - "markdown-scripts" : renderer libraries + bootstrap. Must be included in the
+                         layout's "scripts" block, i.e. AFTER jQuery, because
+                         editormd.js dereferences jQuery at load time.
+*/}}
+{{define "markdown-head"}}
+    <link rel="stylesheet" href="{{.cdn}}/md/css/editormd.preview.css"/>
+{{end}}
+
+{{define "markdown-scripts"}}
+<script src="{{.cdn}}/md/lib/marked.min.js"></script>
+<script src="{{.cdn}}/md/lib/prettify.min.js"></script>
+<script src="{{.cdn}}/md/editormd.js"></script>
+<script>
+(function () {
+    var viewer = document.getElementById('post-viewer') || document.getElementById('page-viewer');
+    if (!viewer || typeof editormd === 'undefined') { return; }
+    var source = viewer.querySelector('textarea');
+    var md = source ? source.value : '';
+    var cdn = {{.cdn}};
+    var allowScript = viewer.getAttribute('data-allow-script') === '1';
+
+    // Diagram / TeX libraries are heavy (raphael alone is ~90KB) and rarely
+    // used, so they are only fetched when the article actually needs them.
+    var needFlow = /(^|\n)\s*```\s*flow/.test(md);
+    var needSeq = /(^|\n)\s*```\s*seq/.test(md);
+    var needTex = /\$\$/.test(md);
+
+    function loadScripts(urls, done) {
+        if (!urls.length) { done(); return; }
+        var s = document.createElement('script');
+        s.src = urls[0];
+        s.onload = s.onerror = function () { loadScripts(urls.slice(1), done); };
+        document.body.appendChild(s);
+    }
+
+    function render() {
+        editormd.markdownToHTML(viewer.id, {
+            htmlDecode: allowScript ? 'style,script,iframe' : 'style,iframe',
+            emoji: true,
+            taskList: true,
+            tex: needTex,
+            flowChart: needFlow && !!(window.jQuery && jQuery.fn.flowChart),
+            sequenceDiagram: needSeq && !!(window.jQuery && jQuery.fn.sequenceDiagram)
+        });
+        viewer.setAttribute('data-rendered', '1');
+        if (typeof window.enhancePost === 'function') {
+            window.enhancePost();
+        }
+    }
+
+    var extra = [];
+    if (needFlow || needSeq) {
+        extra.push(cdn + '/md/lib/raphael.min.js', cdn + '/md/lib/underscore.min.js');
+        if (needSeq) { extra.push(cdn + '/md/lib/sequence-diagram.min.js'); }
+        if (needFlow) { extra.push(cdn + '/md/lib/flowchart.min.js', cdn + '/md/lib/jquery.flowchart.min.js'); }
+    }
+    // Render right away instead of waiting for window.onload: onload is held
+    // back by every image and third-party iframe (comments, analytics), which
+    // kept the article blank for seconds on slow networks.
+    loadScripts(extra, render);
+})();
+</script>
+{{end}}
+
+{{define "comments"}}
+<section id="comments" class="comments" aria-label="评论">
+    <div id="giscus-container" class="giscus"></div>
+    <noscript>评论区需要启用 JavaScript。</noscript>
+</section>
+<script>
+(function () {
+    var container = document.getElementById('giscus-container');
+    if (!container) { return; }
+    var loaded = false;
+
+    function load() {
+        if (loaded) { return; }
+        loaded = true;
+        var s = document.createElement('script');
+        s.src = 'https://giscus.app/client.js';
+        s.setAttribute('data-repo', 'whrss9527/blog-comments');
+        s.setAttribute('data-repo-id', 'R_kgDOI5Sj3w');
+        s.setAttribute('data-category-id', 'DIC_kwDOI5Sj384CT-Us');
+        s.setAttribute('data-mapping', 'pathname');
+        s.setAttribute('data-strict', '0');
+        s.setAttribute('data-reactions-enabled', '1');
+        s.setAttribute('data-emit-metadata', '0');
+        s.setAttribute('data-input-position', 'top');
+        s.setAttribute('data-theme', document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+        s.setAttribute('data-lang', 'zh-CN');
+        s.setAttribute('data-loading', 'lazy');
+        s.setAttribute('crossorigin', 'anonymous');
+        s.async = true;
+        container.appendChild(s);
+    }
+
+    // Only pull in the comment widget when the reader gets close to it.
+    if ('IntersectionObserver' in window) {
+        var io = new IntersectionObserver(function (entries) {
+            if (entries[0].isIntersecting) { io.disconnect(); load(); }
+        }, {rootMargin: '600px 0px'});
+        io.observe(container);
+    } else {
+        load();
+    }
+    if (location.hash === '#comments') { load(); }
+})();
+</script>
+{{end}}
