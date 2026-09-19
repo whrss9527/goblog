@@ -1,2 +1,7 @@
+# Public pages may be crawled; the admin, the JSON API and helper routes need not be.
+# (Until v1.9.0 this file said "Disallow: /", which told every search engine to stay away.)
 User-agent: *
-Disallow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /random
+Disallow: /offline

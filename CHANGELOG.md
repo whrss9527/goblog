@@ -3,6 +3,16 @@
 本项目的所有重要变更都记录在这里。版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)，
 当前版本同时写在 `internal/version/version.go` 中（页面 `<meta name="generator">` 会带上它）。
 
+## [1.9.1] - 2026-09-19 · robots.txt
+
+### 修复
+- **`robots.txt` 在拒绝所有搜索引擎**：文件内容一直是 `Disallow: /`，只是以前文件名和路由都叫 `robot.txt`（非标准名字，
+  爬虫请求 `/robots.txt` 得到 404，等同于允许抓取），所以没有生效；5 月那次重构把它改成了标准的 `/robots.txt`，
+  这条规则从此真的开始生效 —— 同一次提交里还加了 sitemap、canonical、OG 标签，显然不是有意为之。
+  现在只屏蔽 `/admin/`、`/api/`、`/random`、`/offline`，并自动附上 `Sitemap: <host>/sitemap.xml`（按配置的 host 生成）。
+  **如果你确实不想被搜索引擎收录**，把 `robots.txt` 改回 `Disallow: /` 即可（同时删掉 `robots_test.go` 里对应的断言）。
+  如果线上已经部署过 5 月之后的版本，建议上线后到 Google Search Console / Bing Webmaster 重新提交 sitemap。
+
 ## [1.9.0] - 2026-09-19 · 私有草稿、账号安全、数据文件格式
 
 ### 新增

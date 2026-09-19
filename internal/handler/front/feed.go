@@ -1,8 +1,10 @@
 package front
 
 import (
+	"bytes"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -43,7 +45,12 @@ func (h *FeedHandler) GetRobotTxt(ctx *gin.Context) {
 		ctx.Writer.WriteHeader(500)
 		return
 	}
+	// the sitemap address depends on the configured host, so it is added here
+	if !bytes.Contains(bytes.ToLower(file), []byte("sitemap:")) && h.host != "" {
+		file = append(bytes.TrimRight(file, "\n"), []byte("\n\nSitemap: "+strings.TrimRight(h.host, "/")+"/sitemap.xml\n")...)
+	}
 	ctx.Header("Content-Type", "text/plain; charset=utf-8")
+	ctx.Header("Cache-Control", "public, max-age=3600")
 	ctx.Writer.Write(file)
 }
 

@@ -319,6 +319,7 @@ func TestFrontPages(t *testing.T) {
 		{name: "book covers are served from the data dir", target: "/covers/c.jpg", wantStatus: http.StatusOK, wantContain: []string{"not-really-a-jpeg"}},
 		{name: "feed", target: "/feed.xml", wantStatus: http.StatusOK, wantContain: []string{"https://blog.example.com/posts/hello"}, wantAbsent: []string{"Draft"}},
 		{name: "sitemap", target: "/sitemap.xml", wantStatus: http.StatusOK, wantContain: []string{"https://blog.example.com/posts/hello"}},
+		{name: "robots.txt points crawlers to the sitemap", target: "/robots.txt", wantStatus: http.StatusOK, wantContain: []string{"User-agent: *", "Sitemap: https://blog.example.com/sitemap.xml"}},
 		{name: "health", target: "/ping", wantStatus: http.StatusOK},
 		{
 			name: "search API ranks and highlights", target: "/api/search?q=gopher", wantStatus: http.StatusOK,
