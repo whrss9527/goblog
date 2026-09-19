@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>{{template "admin-head" .}}<title>标签改名 · 后台</title></head>
+{{template "admin-open" .}}
+<div class="admin-page-head">
+    <h1>标签改名</h1>
+    <a class="btn btn-outline-secondary" href="/admin/tags">返回列表</a>
+</div>
+{{if .error}}<div class="alert alert-danger admin-note" role="alert">{{.error}}</div>{{end}}
+<div class="card admin-form-card">
+    <div class="card-body">
+        <form class="admin-form" action="/admin/tags/save" method="POST" id="tag-form" data-other-names="{{.other_names}}">
+            <input type="hidden" name="_csrf" value="{{.csrf_token}}">
+            <input type="hidden" name="id" value="{{.tag.Id}}">
+            <div class="mb-4">
+                <label class="form-label" for="tag-name">标签名称</label>
+                <input class="form-control" id="tag-name" type="text" name="name" value="{{.typed}}" maxlength="40" required autofocus autocomplete="off">
+                <div class="form-text">现在有 {{.tag.Count}} 篇已发布的文章在用这个标签。改成<strong>另一个标签已有的名字</strong>会把两个标签合并：文章全部换到那个标签下，这个标签随之消失。</div>
+                <div class="form-text admin-merge-hint" id="merge-hint" hidden></div>
+            </div>
+            <div class="admin-form-actions">
+                <button type="submit" class="btn btn-primary" id="tag-submit">保存</button>
+                <a class="btn btn-link" href="/admin/tags">取消</a>
+            </div>
+        </form>
+    </div>
+</div>
+{{template "admin-close" .}}
+</html>

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"goblog/internal/filestore"
@@ -27,6 +28,24 @@ func checkSlug(slug string) string {
 		return "地址太长了，最多 100 个字符"
 	case !slugPattern.MatchString(slug) || strings.Contains(slug, ".."):
 		return "地址只能用小写字母、数字和 - _ . ，并以字母或数字开头"
+	}
+	return ""
+}
+
+const maxLabelLength = 40
+
+// checkLabel validates the name of a tag or category (what: "标签名" / "分类名") and returns a message
+// for the author ("" when it is fine).
+func checkLabel(name, what string) string {
+	switch {
+	case name == "":
+		return what + "不能为空"
+	case utf8.RuneCountInString(name) > maxLabelLength:
+		return what + "太长了，最多 40 个字"
+	case strings.ContainsAny(name, ",，"):
+		return what + "里不能有逗号：写文章时逗号用来分隔多个标签"
+	case strings.ContainsFunc(name, unicode.IsControl):
+		return what + "里不能有换行或控制字符"
 	}
 	return ""
 }

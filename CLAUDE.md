@@ -72,6 +72,8 @@ The Gin engine is initialized in `internal/pkg/gin/gin.go` (CORS, error handling
   `/random`, feeds and cross-origin requests are never touched. `app.pwa: false` turns `/sw.js` into a worker that
   clears the caches and unregisters itself. Icons in `static/icons` come from `static/logo.png` via `make icons`.
   New files a page needs offline must be added to `precachedAssets`.
+- **Analytics**: the Google tag in `tpl/default/layout.html` is injected by a script that skips `localhost`, private
+  IPv4 ranges and `*.local`, so previews and development never reach the statistics.
 - **Counters**: view counts (`views.json`) and likes (`likes.json`) live in memory, are flushed to the data dir every 5 minutes and committed/pushed hourly. Both are keyed by post slug and migrate on slug rename.
 - **JSON API**: `GET /api/search?q=` (instant search), `POST /api/posts/:identity/like`; both are rate limited per IP via `middleware.NewRateLimiter`. `GET /random` redirects to a random post.
 - **Cron jobs**: Heatmap data aggregation runs hourly via `robfig/cron`, writing `heatmap.txt`.
@@ -115,6 +117,15 @@ The Gin engine is initialized in `internal/pkg/gin/gin.go` (CORS, error handling
   deletes the draft. `front.RenderPostPreview` renders a draft with the public template (`.preview`).
 - **Admin account**: `app.admin_email` + `app.admin_password_hash` win over `users.json` (which sits in the — usually
   public — content repository). Login failures all look the same (one message, bcrypt always runs).
+- **Tags / categories**: `filestore.RenameTag` renames, and merges when the name already belongs to another tag
+  (posts are retagged on disk first, memory second, `updated_at` untouched); `DeleteTag` takes the tag off every post.
+  Tag counts are recounted at startup (posts may arrive through git, not the admin). `CategoryDelete` refuses while
+  posts use the category (`*filestore.CategoryInUseError`). Names go through `checkLabel` (no commas: the editor's
+  tag field splits on them). List pages report refusals in place (`renderList(ctx, status, problem)`).
+- Content files are written in the format the migrated repository uses (`tag_ids: [1, 2]`, one trailing newline):
+  `postToFrontmatter(parsePost(x)) == x` for files the app wrote, so saving shows up in git as the real change only.
+- `view.AdminRenderStatus` sets `account_warning` while the admin account still comes from `users.json` of a
+  git-backed data dir (`accountInContentRepo`); `_partials.html` shows it on every list / form page.
 - `model.Tag` / `Category` / `User` carry JSON names matching the migrated data files; do not remove them, or the
   next save rewrites the files with Go field names and drops the timestamps.
 - The editor keeps a local backup in `localStorage` (`goblog:draft:<kind>:<id|new>`); a successful save redirects to
@@ -127,7 +138,8 @@ The Gin engine is initialized in `internal/pkg/gin/gin.go` (CORS, error handling
 
 ## Server
 
-Port configured via `server.http_port`. Health check at `GET /ping`.
+Port configured via `server.http_port`, listen address via `server.host` (empty: every interface). `gin.RunGin` returns
+an error when it cannot listen and `main` exits non-zero. Health check at `GET /ping`.
 
 ## Deployment
 

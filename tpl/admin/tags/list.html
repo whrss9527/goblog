@@ -5,23 +5,30 @@
 <div class="admin-page-head">
     <h1>标签 <small>{{len .tags}} 个</small></h1>
 </div>
-<p class="admin-hint">标签不用单独创建：写文章时在「标签」里填上名字（多个用逗号分隔），保存后会自动出现在这里。</p>
+{{if .error}}<div class="alert alert-danger admin-note" role="alert">{{.error}}</div>{{end}}
+{{if eq .done "renamed"}}<div class="alert alert-success admin-note" role="status">已改名为「{{.done_name}}」。</div>
+{{else if eq .done "merged"}}<div class="alert alert-success admin-note" role="status">已合并到「{{.done_name}}」，原来的文章都换成了这个标签。</div>
+{{else if eq .done "deleted"}}<div class="alert alert-success admin-note" role="status">已删除「{{.done_name}}」，用过它的文章不再带这个标签。</div>{{end}}
+<p class="admin-hint">标签不用单独创建：写文章时在「标签」里填上名字（多个用逗号分隔），保存后会自动出现在这里。
+    想合并两个标签，把其中一个<strong>改名</strong>成另一个的名字就行。</p>
 <div class="card">
     <div class="card-body">
-        <table id="datatablesSimple" class="admin-table">
+        <table id="datatablesSimple" class="admin-table admin-table-short">
             <thead>
             <tr>
-                <th>ID</th>
+                <th class="col-md">ID</th>
                 <th>标签</th>
                 <th>文章数</th>
+                <th data-sortable="false">操作</th>
             </tr>
             </thead>
             <tbody>
             {{range .tags}}
             <tr>
-                <td>{{.Id}}</td>
+                <td class="col-md">{{.Id}}</td>
                 <td><a class="admin-title" href="/?tag_id={{.Id}}" target="_blank" rel="noopener">{{.Name}}</a></td>
                 <td>{{.Count}}</td>
+                <td>{{template "admin-row-actions" dict "edit" (printf "/admin/tags/edit?id=%d" .Id) "editText" "改名" "action" "/admin/tags/delete" "id" .Id "csrf" $.csrf_token "what" .Name "consequence" (printf "用到它的 %d 篇文章会去掉这个标签，文章本身不受影响。" .Count)}}</td>
             </tr>
             {{end}}
             </tbody>

@@ -6,12 +6,13 @@
     <h1>分类 <small>{{len .categories}} 个</small></h1>
     <a class="btn btn-primary" href="/admin/categories/add">添加分类</a>
 </div>
+{{if .error}}<div class="alert alert-danger admin-note" role="alert">{{.error}}</div>{{end}}
 <div class="card">
     <div class="card-body">
-        <table id="datatablesSimple" class="admin-table">
+        <table id="datatablesSimple" class="admin-table admin-table-short">
             <thead>
             <tr>
-                <th>ID</th>
+                <th class="col-md">ID</th>
                 <th>分类</th>
                 <th data-sortable="false">操作</th>
             </tr>
@@ -19,7 +20,7 @@
             <tbody>
             {{range .categories}}
             <tr>
-                <td>{{.Id}}</td>
+                <td class="col-md">{{.Id}}</td>
                 <td><a class="admin-title" href="/admin/categories/add?id={{.Id}}">{{.Name}}</a></td>
                 <td>{{template "admin-row-actions" dict "edit" (printf "/admin/categories/add?id=%d" .Id) "action" "/admin/categories/delete" "id" .Id "csrf" $.csrf_token "what" .Name}}</td>
             </tr>

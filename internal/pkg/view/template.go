@@ -104,7 +104,7 @@ func InitTemplates() {
 			"posts/list", "posts/add",
 			"pages/list", "pages/add",
 			"categories/list", "categories/add",
-			"tags/list",
+			"tags/list", "tags/edit",
 			"books/list", "books/add",
 		}
 		for _, page := range adminPages {
@@ -229,6 +229,7 @@ func AdminRenderStatus(status int, data map[string]any, w http.ResponseWriter, t
 	data["site_name"] = appConf.Name
 	data["site_version"] = version.Version
 	data["this_year"] = time.Now().Year()
+	data["account_warning"] = appConf.AccountInContentRepo()
 
 	t, ok := adminTemplates[tpl]
 	if !ok {

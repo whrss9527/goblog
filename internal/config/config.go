@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/viper"
@@ -50,6 +51,9 @@ type (
 		AdminPasswordHash string `mapstructure:"admin_password_hash"`
 	}
 	ServerConfig struct {
+		// Host is the address to listen on. Empty (the default) means every interface; "127.0.0.1" keeps
+		// the server private to the machine — what you want behind nginx / cloudflared and for previews.
+		Host                    string        `mapstructure:"host"`
 		HttpPort                uint32        `mapstructure:"http_port"`
 		GracefulShutdownTimeout time.Duration `mapstructure:"graceful_shutdown_timeout"`
 	}
@@ -67,6 +71,21 @@ server:
 // ConfigAdmin reports whether the admin account comes from the config file.
 func (c *AppConfig) ConfigAdmin() bool {
 	return c != nil && c.AdminEmail != "" && c.AdminPasswordHash != ""
+}
+
+// AccountInContentRepo reports whether the admin still signs in with the account kept in users.json of a
+// git-backed content repository. That repository is usually public, which makes the password hash public
+// too, so goblog keeps nagging (log at startup, banner in the admin) until the account has moved into the
+// config file.
+func (c *AppConfig) AccountInContentRepo() bool {
+	if c == nil || c.ConfigAdmin() {
+		return false
+	}
+	if c.GitRepo != "" {
+		return true
+	}
+	info, err := os.Stat(filepath.Join(c.DataDir, ".git"))
+	return err == nil && info.IsDir()
 }
 
 // PWAEnabled reports whether the site should offer its service worker.

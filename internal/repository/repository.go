@@ -56,6 +56,11 @@ type TagRepository interface {
 	GetTagIdsByName(name string) ([]string, error)
 	AddTag(tag model.Tag) (int, error)
 	IncrTagCount(id string) error
+	// RenameTag renames a tag; if the name belongs to another tag already, the two are merged.
+	// It returns the id the posts are filed under afterwards.
+	RenameTag(id int, name string) (int, error)
+	// DeleteTag removes a tag and takes it off every post.
+	DeleteTag(id int) error
 }
 
 type PageRepository interface {

@@ -502,3 +502,18 @@ func TestClientRenderMode(t *testing.T) {
 		}
 	}
 }
+
+// Previews on localhost / a LAN address must not end up in the site's statistics: the Google tag is
+// only injected by a script that looks at the host name first, never loaded unconditionally.
+func TestAnalyticsNotLoadedUnconditionally(t *testing.T) {
+	h := newTestServer(t)
+	for _, target := range []string{"/", "/posts/hello", "/archive", "/offline", "/no-such-page"} {
+		body := get(t, h, target).Body.String()
+		if strings.Contains(body, `src="https://www.googletagmanager.com`) {
+			t.Errorf("%s loads gtag.js with a plain script tag", target)
+		}
+		if !strings.Contains(body, "location.hostname") || !strings.Contains(body, "googletagmanager.com/gtag/js") {
+			t.Errorf("%s lost the host-aware analytics snippet", target)
+		}
+	}
+}

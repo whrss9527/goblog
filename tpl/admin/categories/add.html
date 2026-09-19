@@ -6,6 +6,7 @@
     <h1>{{if .id}}编辑分类{{else}}添加分类{{end}}</h1>
     <a class="btn btn-outline-secondary" href="/admin/categories">返回列表</a>
 </div>
+{{if .error}}<div class="alert alert-danger admin-note" role="alert">{{.error}}</div>{{end}}
 <div class="card admin-form-card">
     <div class="card-body">
         <form class="admin-form" action="/admin/categories/save" method="POST">
@@ -13,7 +14,7 @@
             <input type="hidden" name="id" value="{{.id}}">
             <div class="mb-4">
                 <label class="form-label" for="category-name">分类名称</label>
-                <input class="form-control" id="category-name" type="text" name="name" value="{{.name}}" required autofocus>
+                <input class="form-control" id="category-name" type="text" name="name" value="{{.name}}" maxlength="40" required autofocus>
             </div>
             <div class="admin-form-actions">
                 <button type="submit" class="btn btn-primary">保存</button>

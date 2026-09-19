@@ -31,12 +31,17 @@ func main() {
 	}
 	conf := config.LoadConfig(configPath)
 
+	if conf.App == nil {
+		// LoadConfig falls back to its defaults when the file does not exist
+		slog.Error("the config file is missing or has no app section", "config", configPath)
+		os.Exit(1)
+	}
 	if conf.Server == nil || conf.Server.HttpPort == 0 {
 		slog.Error("server.http_port is not configured")
-		return
+		os.Exit(1)
 	}
 
-	if conf.App != nil && !conf.App.ConfigAdmin() && conf.App.GitRepo != "" {
+	if conf.App.AccountInContentRepo() {
 		slog.Warn("the admin account is read from users.json in the content repository; if that repository is public its password hash is too — " +
 			"set app.admin_email / app.admin_password_hash (goblog -hash-password), remove users.json from the repository and change the password")
 	}
@@ -45,8 +50,13 @@ func main() {
 	server := routers.NewServer(conf)
 	router := ginpkg.InitGinConfig(conf.App.Mode)
 	cleanup := server.InitRouter(router)
-	defer cleanup()
-	ginpkg.RunGin(router, conf.Server.HttpPort, conf.Server.GracefulShutdownTimeout)
+	err := ginpkg.RunGin(router, conf.Server.Host, conf.Server.HttpPort, conf.Server.GracefulShutdownTimeout)
+	cleanup()
+	if err != nil {
+		// e.g. the port is taken: exit non-zero so that systemd (Restart=on-failure) and scripts notice
+		slog.Error("server failed", "err", err)
+		os.Exit(1)
+	}
 }
 
 // printPasswordHash implements -hash-password: one line from in, the bcrypt

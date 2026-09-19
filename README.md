@@ -7,6 +7,7 @@
 - **文件存储**：博客内容（文章、分类、标签、页面）以 Markdown 文件形式存放在独立的 Git 仓库中（`blog-data`），运行时按需克隆/拉取，无需数据库。
 - **管理后台**：登录后可对文章、页面、分类、标签、阅读清单做增删改查；admin 操作通过 session cookie 鉴权。
   手机上同样可用；编辑器会在浏览器本地自动保留草稿（关页、登录过期、保存失败都不丢稿），保存前校验文章地址，不会覆盖别的文章。
+  标签可以改名、合并（改成另一个标签的名字）、删除，文章里的引用自动跟着变；还有文章在用的分类不允许删除。
 - **公开前台**：首页、文章页、标签页、分类页、阅读清单、关于页、站内搜索（基于内存索引）。
 - **RSS / Atom**：启动时生成 `/feed.xml`。
 - **Sitemap**：`/sitemap.xml`。
@@ -81,6 +82,22 @@ make mac         # 或编译为 macOS arm64
 # 浏览器打开 http://localhost:9091
 ```
 
+### 只想看看效果，不碰线上数据
+
+`data_dir` 指向一个**不含 `.git`** 的目录、并且不配置 `git_repo` 时，goblog 只读写这个目录：不 pull、不 commit、不 push。
+拿内容仓库的一份导出当数据，就能放心地点赞、改文章、试后台，线上仓库一个字节都不会变：
+
+```bash
+mkdir -p /tmp/goblog-preview/data
+git -C /path/to/blog-data archive HEAD | tar -x -C /tmp/goblog-preview/data   # 导出的副本里没有 .git
+
+# conf/preview.yaml：data_dir 指向上面的目录，git_repo 留空，cdn 写 "/static"（不依赖外部 CDN），
+# app.host 写 http://localhost:9191，server.host 写 "127.0.0.1"（只有本机能访问），server.http_port 写 9191
+./goblog -config ./conf/preview.yaml
+```
+
+本机 / 局域网地址（`localhost`、`127.0.0.1`、`192.168.x.x`、`*.local` 等）打开的页面不会加载 Google Analytics，预览不会污染线上统计。
+
 ## 生产部署（systemd）
 
 ```bash
@@ -107,6 +124,26 @@ systemctl status goblog
 cd /opt/goblog && git pull && make build && systemctl restart goblog
 ```
 
+## 从 1.0 升级到 1.10
+
+1.1 ～ 1.10 没有破坏性变更：配置文件不改也能启动，内容仓库的文件格式保持不变。照常发版即可：
+
+```bash
+cd /opt/goblog && git pull && make build && systemctl restart goblog
+```
+
+升级时值得过一遍的事情：
+
+| 事项 | 说明 |
+|------|------|
+| 静态文件 | `tpl/`、`static/`、`robots.txt` 随仓库更新；用 `make tar` 发版的话包里也已经带上。新增的 `static/icons/`、`static/js/*.js`、`static/admin/` 都从本机 `/static` 加载（带内容指纹），**CDN 桶（`app.cdn`）不需要上传任何新文件** |
+| 后台账号 | 内容仓库是公开的话，把账号搬进配置文件并**换一个新密码**，见下文「后台账号放在配置文件里」。没搬之前，后台每个列表页顶部都会有一条提醒 |
+| 新配置项 | 全部可选：`description`（站点简介，建议填，首页标题和搜索结果摘要会用）、`markdown_render`、`pwa`、`admin_email` / `admin_password_hash`、`server.host`（用 Cloudflare Tunnel / nginx 时建议 `"127.0.0.1"`），说明见 `conf/prod.yaml.example` |
+| robots.txt | 1.9.1 起只屏蔽 `/admin/`、`/api/`、`/random`、`/offline`，并附上 sitemap 地址。此前的内容是 `Disallow: /`（拒绝所有搜索引擎）；如果那是有意的，把仓库根目录的 `robots.txt` 改回去即可 |
+| Service Worker | 访客的浏览器会注册 `/sw.js`（离线阅读）。反向代理 / Cloudflare 不要给 `/sw.js` 加长缓存（服务端返回的是 `no-cache`）。想关掉就设 `pwa: false` —— 它会让已安装的 Service Worker 自行注销并清空缓存；**回滚到 1.7 之前的版本，也请先这样跑几天** |
+| 内容仓库的新文件 | `likes.json`（点赞数，和 `views.json` 一样每小时提交一次）。草稿在 `<data_dir>/.drafts/`，不进仓库 |
+| 旧标签 | 1.9 之前用「`a, b`」这种写法输入标签，会产生带前导空格的重复标签（如 `" blog"` 和 `"blog"` 并存）。后台「标签」页现在可以改名 / 删除：把带空格的那个**改名成正常的名字**，两个标签就会合并，文章自动换到留下的那个标签下 |
+
 ## 配置说明
 
 最小化配置（见 `conf/dev.yaml.example`）：
@@ -127,6 +164,7 @@ app:
   admin_password_hash: ""      # ./goblog -hash-password 生成
 
 server:
+  host: ""                     # 可选：监听地址，留空 = 所有网卡；nginx / cloudflared 之后建议 "127.0.0.1"
   http_port: 9091
   graceful_shutdown_timeout: 15s
 ```

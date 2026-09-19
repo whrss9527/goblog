@@ -81,6 +81,17 @@ body.admin {
     margin-bottom: 16px;
 }
 
+.admin-merge-hint {
+    color: #b45309;
+    font-weight: 600;
+}
+
+.admin-account-warning {
+    margin: 16px 0 0;
+    font-size: 0.9rem;
+    line-height: 1.7;
+}
+
 /* ---------- drafts ---------- */
 .admin-drafts {
     margin-bottom: 16px;
@@ -233,6 +244,17 @@ body.admin {
     .admin-actions .btn {
         width: 100%;
         min-height: 36px;
+    }
+
+    /* tags / categories: short names leave room for the two buttons side by side */
+    .admin-table-short .admin-actions {
+        flex-direction: row;
+    }
+
+    .admin-table-short .admin-actions .btn {
+        width: auto;
+        padding-left: 12px;
+        padding-right: 12px;
     }
 
     .admin .dataTable-dropdown {

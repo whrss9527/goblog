@@ -191,8 +191,18 @@ func (r *FileRepository) parsePost(raw string, slug string) *model.Post {
 	return post
 }
 
+// tagIdString is the JSON list the templates and the frontmatter use: "[1, 2]", never "null".
+// The ", " separator is what the migrated content files have, so saving a post does not show up as a
+// formatting change in the content repository.
+func tagIdString(tagIds []int) string {
+	parts := make([]string, len(tagIds))
+	for i, tagId := range tagIds {
+		parts[i] = strconv.Itoa(tagId)
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
+}
+
 func postToFrontmatter(post *model.Post) string {
-	tagIds, _ := json.Marshal(post.TagIds)
 	desc := escapeQuoted(strings.TrimSpace(post.Description))
 	title := escapeQuoted(strings.TrimSpace(post.Title))
 
@@ -204,11 +214,12 @@ func postToFrontmatter(post *model.Post) string {
 	fmt.Fprintf(&b, "updated_at: %s\n", post.UpdatedAt.Format(time.RFC3339))
 	fmt.Fprintf(&b, "category_id: %d\n", post.CategoryId)
 	fmt.Fprintf(&b, "is_top: %d\n", post.IsTop)
-	fmt.Fprintf(&b, "tag_ids: %s\n", string(tagIds))
+	fmt.Fprintf(&b, "tag_ids: %s\n", tagIdString(post.TagIds))
 	fmt.Fprintf(&b, "description: \"%s\"\n", desc)
 	fmt.Fprintf(&b, "word_count: %d\n", post.WordCount)
 	b.WriteString("---\n\n")
 	b.WriteString(post.Content)
+	b.WriteString("\n") // text files end with a newline; the parser trims the body again
 
 	return b.String()
 }
@@ -221,5 +232,6 @@ func pageToFrontmatter(page model.Page) string {
 	fmt.Fprintf(&b, "title: \"%s\"\n", title)
 	b.WriteString("---\n\n")
 	b.WriteString(page.Content)
+	b.WriteString("\n")
 	return b.String()
 }

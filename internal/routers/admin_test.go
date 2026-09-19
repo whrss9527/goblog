@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -32,10 +33,10 @@ type adminClient struct {
 	dataDir string
 }
 
-func newAdminClient(t *testing.T) *adminClient {
+func newAdminClient(t *testing.T, options ...func(*config.Config)) *adminClient {
 	t.Helper()
 	var dataDir string
-	handler := newTestServer(t, func(c *config.Config) {
+	handler := newTestServer(t, append([]func(*config.Config){func(c *config.Config) {
 		dataDir = c.App.DataDir
 		c.App.Host = "http://blog.example.com" // an https host marks the session cookie Secure, the test server speaks http
 		hash, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.MinCost)
@@ -46,7 +47,7 @@ func newAdminClient(t *testing.T) *adminClient {
 		if err := os.WriteFile(filepath.Join(dataDir, "users.json"), []byte(users), 0o600); err != nil {
 			t.Fatal(err)
 		}
-	})
+	}}, options...)...)
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 
@@ -352,6 +353,141 @@ func TestAdminTagParsing(t *testing.T) {
 	}
 }
 
+func TestAdminTagRenameMergeDelete(t *testing.T) {
+	a := newAdminClient(t)
+	readTags := func() string {
+		raw, _ := os.ReadFile(filepath.Join(a.dataDir, "tags.json"))
+		return string(raw)
+	}
+	postFile := func(slug string) string {
+		raw, _ := os.ReadFile(filepath.Join(a.dataDir, "posts", slug+".md"))
+		return string(raw)
+	}
+
+	// the list offers both actions, the form explains what a known name does
+	_, body, _ := a.get("/admin/tags")
+	for _, want := range []string{`href="/admin/tags/edit?id=1"`, `action="/admin/tags/delete"`, "改名", "用到它的 2 篇文章会去掉这个标签"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("tag list does not contain %q", want)
+		}
+	}
+	_, body, _ = a.get("/admin/tags/edit?id=2")
+	if !strings.Contains(body, `value="unused"`) || !strings.Contains(body, `data-other-names="[&#34;go&#34;]"`) {
+		t.Errorf("rename form must carry the name and the names that would merge")
+	}
+	if status, _, location := a.get("/admin/tags/edit?id=99"); status != http.StatusFound || location != "/admin/tags" {
+		t.Errorf("unknown tag = %d -> %q, want a redirect to the list", status, location)
+	}
+
+	// refused names come back with the form, nothing is written
+	for _, name := range []string{"   ", "a,b", "a，b", strings.Repeat("长", 41), "two\nlines"} {
+		status, body, _ := a.post("/admin/tags/save", url.Values{"_csrf": {a.token("/admin/tags/edit?id=2")}, "id": {"2"}, "name": {name}})
+		if status != http.StatusUnprocessableEntity || !strings.Contains(body, "alert-danger") {
+			t.Errorf("name %q = %d, want 422 with an explanation", name, status)
+		}
+	}
+	if !strings.Contains(readTags(), `"unused"`) {
+		t.Fatalf("a refused rename must not change tags.json: %s", readTags())
+	}
+
+	// plain rename
+	status, _, location := a.post("/admin/tags/save", url.Values{"_csrf": {a.token("/admin/tags/edit?id=2")}, "id": {"2"}, "name": {" golang "}})
+	if status != http.StatusFound || !strings.HasPrefix(location, "/admin/tags?done=renamed&name=golang") {
+		t.Fatalf("rename = %d -> %q", status, location)
+	}
+	if tags := readTags(); !strings.Contains(tags, `"golang"`) || strings.Contains(tags, `"unused"`) || !strings.Contains(tags, `"created_at"`) {
+		t.Errorf("tags.json after rename: %s", tags)
+	}
+	if _, body, _ := a.get(location); !strings.Contains(body, "已改名为「golang」") {
+		t.Error("the list must confirm the rename")
+	}
+
+	// renaming onto an existing name merges: posts of "go" (id 1) move to "golang" (id 2)
+	status, _, location = a.post("/admin/tags/save", url.Values{"_csrf": {a.token("/admin/tags/edit?id=1")}, "id": {"1"}, "name": {"golang"}})
+	if status != http.StatusFound || !strings.HasPrefix(location, "/admin/tags?done=merged") {
+		t.Fatalf("merge = %d -> %q", status, location)
+	}
+	if tags := readTags(); strings.Contains(tags, `"go"`) || !strings.Contains(tags, `"count": 2`) {
+		t.Errorf("tags.json after merge: %s", tags)
+	}
+	for _, slug := range []string{"hello", "older"} {
+		if post := postFile(slug); !strings.Contains(post, "tag_ids: [2]\n") {
+			t.Errorf("%s must be filed under the surviving tag: %.300s", slug, post)
+		}
+	}
+	if post := postFile("older"); !strings.Contains(post, "updated_at: 2021-01-02T10:00:00+08:00") {
+		t.Errorf("retagging is not an edit, updated_at must stay: %.300s", post)
+	}
+	if _, body, _ := a.get("/posts/hello"); !strings.Contains(body, `href="/?tag_id=2">golang</a>`) {
+		t.Error("the article must show the surviving tag")
+	}
+
+	// delete
+	status, _, location = a.post("/admin/tags/delete", url.Values{"_csrf": {a.token("/admin/tags")}, "id": {"2"}})
+	if status != http.StatusFound || !strings.HasPrefix(location, "/admin/tags?done=deleted&name=golang") {
+		t.Fatalf("delete = %d -> %q", status, location)
+	}
+	if post := postFile("hello"); !strings.Contains(post, "tag_ids: []\n") {
+		t.Errorf("a deleted tag must leave the posts: %.300s", post)
+	}
+	if _, body, _ := a.get("/posts/hello"); strings.Contains(body, "tag_id=") {
+		t.Error("the article still links a deleted tag")
+	}
+	// (no tag is left, so the list has no form any more: any other page carries the session's token)
+	if status, body, _ := a.post("/admin/tags/delete", url.Values{"_csrf": {a.token("/admin/categories/add")}, "id": {"2"}}); status != http.StatusNotFound || !strings.Contains(body, "已经不存在") {
+		t.Errorf("deleting twice = %d, want 404 with an explanation", status)
+	}
+
+	// anonymous visitors and forged forms get nowhere
+	if status, _, _ := a.post("/admin/tags/delete", url.Values{"_csrf": {"forged"}, "id": {"1"}}); status != http.StatusForbidden {
+		t.Errorf("forged CSRF token = %d, want 403", status)
+	}
+}
+
+func TestAdminCategories(t *testing.T) {
+	a := newAdminClient(t)
+
+	// a category with posts cannot be deleted: the posts would point at nothing
+	status, body, _ := a.post("/admin/categories/delete", url.Values{"_csrf": {a.token("/admin/categories")}, "id": {"1"}})
+	if status != http.StatusConflict || !strings.Contains(body, "还有 3 篇文章") {
+		t.Errorf("deleting a used category = %d, want 409 with the number of posts", status)
+	}
+	raw, _ := os.ReadFile(filepath.Join(a.dataDir, "categories.json"))
+	if !strings.Contains(string(raw), "技术") {
+		t.Fatalf("the category is gone: %s", raw)
+	}
+
+	// names are validated, the form comes back with what was typed
+	status, body, _ = a.post("/admin/categories/save", url.Values{"_csrf": {a.token("/admin/categories/add")}, "id": {""}, "name": {"  "}})
+	if status != http.StatusUnprocessableEntity || !strings.Contains(body, "分类名不能为空") {
+		t.Errorf("empty name = %d", status)
+	}
+
+	// add, rename, delete
+	status, _, location := a.post("/admin/categories/save", url.Values{"_csrf": {a.token("/admin/categories/add")}, "id": {""}, "name": {" 随笔 "}})
+	if status != http.StatusFound || location != "/admin/categories" {
+		t.Fatalf("add = %d -> %q", status, location)
+	}
+	status, _, _ = a.post("/admin/categories/save", url.Values{"_csrf": {a.token("/admin/categories/add?id=2")}, "id": {"2"}, "name": {"生活"}})
+	if status != http.StatusFound {
+		t.Fatalf("rename = %d", status)
+	}
+	raw, _ = os.ReadFile(filepath.Join(a.dataDir, "categories.json"))
+	if !strings.Contains(string(raw), `"生活"`) || strings.Contains(string(raw), "随笔") {
+		t.Errorf("categories.json after rename: %s", raw)
+	}
+	status, _, location = a.post("/admin/categories/delete", url.Values{"_csrf": {a.token("/admin/categories")}, "id": {"2"}})
+	if status != http.StatusFound || location != "/admin/categories" {
+		t.Fatalf("delete = %d -> %q, want a redirect to the list (it used to lead to a 404)", status, location)
+	}
+	if status, _, _ := a.get(location); status != http.StatusOK {
+		t.Errorf("the page after deleting = %d", status)
+	}
+	if status, _, location := a.get("/admin/categories/add?id=2"); status != http.StatusFound || location != "/admin/categories" {
+		t.Errorf("editing a deleted category = %d -> %q", status, location)
+	}
+}
+
 func TestAdminLoginFailuresLookAlike(t *testing.T) {
 	a := newAdminClient(t)
 	a.get("/admin/logout")
@@ -412,6 +548,40 @@ func TestAdminAccountFromConfig(t *testing.T) {
 	if status, _, _ := a.get("/admin/"); status != http.StatusOK {
 		t.Errorf("admin after login = %d", status)
 	}
+}
+
+// The account in users.json travels with the (usually public) content repository. The admin keeps saying so
+// until the account has moved into the config file.
+func TestAdminAccountWarning(t *testing.T) {
+	const warning = "admin-account-warning"
+
+	t.Run("local data directory", func(t *testing.T) {
+		a := newAdminClient(t)
+		if _, body, _ := a.get("/admin/"); strings.Contains(body, warning) {
+			t.Error("nothing is published from a plain data directory, there is nothing to warn about")
+		}
+	})
+
+	t.Run("git-backed data directory", func(t *testing.T) {
+		if _, err := exec.LookPath("git"); err != nil {
+			t.Skip("git is not installed")
+		}
+		a := newAdminClient(t, func(c *config.Config) {
+			if out, err := exec.Command("git", "init", "--quiet", c.App.DataDir).CombinedOutput(); err != nil {
+				t.Fatalf("git init: %v\n%s", err, out)
+			}
+		})
+		for _, path := range []string{"/admin/", "/admin/tags", "/admin/categories/add"} {
+			status, body, _ := a.get(path)
+			if status != http.StatusOK || !strings.Contains(body, warning) || !strings.Contains(body, "-hash-password") {
+				t.Errorf("%s = %d, the users.json warning (with the way out) is missing", path, status)
+			}
+		}
+		// the two full-screen editors stay free of banners
+		if _, body, _ := a.get("/admin/posts/add"); strings.Contains(body, warning) {
+			t.Error("the editor must not carry the warning")
+		}
+	})
 }
 
 func TestAdminLogout(t *testing.T) {

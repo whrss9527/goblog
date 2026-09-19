@@ -67,4 +67,28 @@
         if (note) { note.hidden = false; }
         if (history.replaceState) { history.replaceState(null, '', location.pathname); }
     }
+
+    /* "?done=merged&name=…" has been rendered by the server: a reload should not repeat it */
+    if (new URLSearchParams(location.search).get('done') && history.replaceState) {
+        history.replaceState(null, '', location.pathname);
+    }
+
+    /* renaming a tag to a name that exists merges the two: say so before the button is pressed */
+    var tagForm = document.getElementById('tag-form');
+    if (tagForm) {
+        var others = [];
+        try { others = JSON.parse(tagForm.getAttribute('data-other-names') || '[]'); } catch (e) { /* keep [] */ }
+        var nameInput = document.getElementById('tag-name');
+        var hint = document.getElementById('merge-hint');
+        var submit = document.getElementById('tag-submit');
+        var update = function () {
+            var name = nameInput.value.trim();
+            var merges = name !== '' && others.indexOf(name) !== -1;
+            hint.hidden = !merges;
+            hint.textContent = merges ? '已经有一个叫「' + name + '」的标签：保存后两个标签会合并成它。' : '';
+            submit.textContent = merges ? '合并' : '保存';
+        };
+        nameInput.addEventListener('input', update);
+        update();
+    }
 })();

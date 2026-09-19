@@ -61,6 +61,13 @@
     <div id="layoutSidenav_content">
         <main>
             <div class="container-fluid px-3 px-md-4 pb-4">
+                {{if .account_warning}}
+                <div class="alert alert-warning admin-account-warning" role="alert">
+                    <strong>后台账号还保存在内容仓库的 <code>users.json</code> 里。</strong>
+                    如果这个仓库是公开的，里面的密码哈希任何人都能下载。运行 <code>./goblog -hash-password</code> 为一个<strong>新密码</strong>生成哈希，
+                    写进配置文件的 <code>app.admin_email</code> / <code>app.admin_password_hash</code>，再把 <code>users.json</code> 从内容仓库删掉，这条提示就会消失。
+                </div>
+                {{end}}
 {{end}}
 
 {{define "admin-close"}}
@@ -74,11 +81,12 @@
 </body>
 {{end}}
 
-{{/* "编辑 | 删除" of a table row. Arguments: .edit (URL), .action (POST URL), .id (optional hidden id), .csrf, .what (for the confirm text) */}}
+{{/* "编辑 | 删除" of a table row. Arguments: .edit (URL), .action (POST URL), .id (optional hidden id), .csrf,
+      .what (for the confirm text); optional: .editText (label of the edit button), .consequence (what deleting does) */}}
 {{define "admin-row-actions"}}
 <div class="admin-actions">
-    <a class="btn btn-sm btn-outline-primary" href="{{.edit}}">编辑</a>
-    <form method="POST" action="{{.action}}" data-confirm="确定删除「{{.what}}」？删除后无法在后台恢复。">
+    <a class="btn btn-sm btn-outline-primary" href="{{.edit}}">{{if .editText}}{{.editText}}{{else}}编辑{{end}}</a>
+    <form method="POST" action="{{.action}}" data-confirm="确定删除「{{.what}}」？{{if .consequence}}{{.consequence}}{{else}}删除后无法在后台恢复。{{end}}">
         <input type="hidden" name="_csrf" value="{{.csrf}}">
         {{if .id}}<input type="hidden" name="id" value="{{.id}}">{{end}}
         <button type="submit" class="btn btn-sm btn-outline-danger">删除</button>

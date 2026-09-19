@@ -29,5 +29,8 @@ app:
   admin_password_hash: ""
 
 server:
+  # 监听地址。留空 = 所有网卡；前面有 nginx / cloudflared（Cloudflare Tunnel）时建议写 "127.0.0.1"，
+  # 这样源站端口不会绕过它们被直接访问到
+  host: ""
   http_port: 9091
   graceful_shutdown_timeout: 15s

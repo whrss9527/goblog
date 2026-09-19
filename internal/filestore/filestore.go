@@ -166,6 +166,10 @@ func (r *FileRepository) loadAll() error {
 	if err := r.loadPosts(); err != nil {
 		return fmt.Errorf("load posts: %w", err)
 	}
+	// Posts may have been added or retagged with an editor and git instead of the admin: the numbers
+	// stored in tags.json are only as fresh as the last save made here. (In memory only; the file
+	// follows with the next change.)
+	r.recountTags()
 	return nil
 }
 

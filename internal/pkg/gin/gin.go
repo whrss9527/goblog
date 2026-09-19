@@ -2,10 +2,13 @@ package gin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -54,10 +57,17 @@ func HeadAsGet(next http.Handler) http.Handler {
 	})
 }
 
-func RunGin(router *gin.Engine, port uint32, shutdownTimeout time.Duration) {
-	addr := fmt.Sprintf(":%d", port)
+// RunGin serves until SIGINT / SIGTERM and returns nil after a graceful shutdown. host "" listens on
+// every interface; "127.0.0.1" keeps the server private to the machine (behind nginx / cloudflared, or
+// for a local preview). A server that cannot listen — port taken, address not available — returns the
+// error: it used to log it and then idle forever, which systemd reported as a healthy service.
+func RunGin(router *gin.Engine, host string, port uint32, shutdownTimeout time.Duration) error {
+	addr := net.JoinHostPort(host, strconv.FormatUint(uint64(port), 10))
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("listen on %s: %w", addr, err)
+	}
 	srv := &http.Server{
-		Addr:    addr,
 		Handler: HeadAsGet(router),
 		// bound how long a client may take to send its request headers and how
 		// long idle keep-alive connections are kept around
@@ -68,14 +78,20 @@ func RunGin(router *gin.Engine, port uint32, shutdownTimeout time.Duration) {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	serveErr := make(chan error, 1)
 	go func() {
-		slog.Info("server started", "addr", addr)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("server listen failed", "err", err)
-		}
+		slog.Info("server started", "addr", listener.Addr().String())
+		serveErr <- srv.Serve(listener)
 	}()
 
-	<-ctx.Done()
+	select {
+	case <-ctx.Done():
+	case err := <-serveErr:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return fmt.Errorf("serve: %w", err)
+		}
+		return nil
+	}
 	slog.Info("shutting down server...")
 
 	if shutdownTimeout == 0 {
@@ -88,4 +104,5 @@ func RunGin(router *gin.Engine, port uint32, shutdownTimeout time.Duration) {
 		slog.Error("server forced to shutdown", "err", err)
 	}
 	slog.Info("server exited")
+	return nil
 }
