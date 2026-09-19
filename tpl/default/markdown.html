@@ -16,6 +16,7 @@
 <script src="{{.cdn}}/md/lib/marked.min.js"></script>
 <script src="{{.cdn}}/md/lib/prettify.min.js"></script>
 <script src="{{.cdn}}/md/editormd.js"></script>
+<script src="{{asset "/static/js/article.js"}}"></script>
 <script>
 (function () {
     var viewer = document.getElementById('post-viewer') || document.getElementById('page-viewer');
@@ -69,7 +70,8 @@
 {{end}}
 
 {{define "comments"}}
-<section id="comments" class="comments" aria-label="评论">
+<section id="comments" class="comments" aria-labelledby="comments-title">
+    <h2 class="section-title" id="comments-title">评论</h2>
     <div id="giscus-container" class="giscus"></div>
     <noscript>评论区需要启用 JavaScript。</noscript>
 </section>

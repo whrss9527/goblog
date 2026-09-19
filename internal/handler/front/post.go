@@ -205,6 +205,11 @@ func (h *PostHandler) PostInfo(ctx *gin.Context) {
 	h.recordView(ctx, identity, post.Id)
 	post.CategoryName = category.Name
 	data := make(map[string]any)
+	if all, _, err := h.PostRepo.GetPosts(repository.PostParams{Page: 1}); err == nil {
+		data["newer"], data["older"] = neighbours(all, post)
+		data["related"] = relatedPosts(all, post, 4)
+	}
+	data["outdated_years"] = outdatedYears(post, category.Name, time.Now())
 	data["post"] = post
 	data["tags"] = tags
 	data["nav"] = "post"

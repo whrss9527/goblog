@@ -16,12 +16,64 @@
             </div>
         </header>
 
+        {{if gt .outdated_years 0}}
+        <aside class="notice notice-outdated" role="note">
+            {{template "icon-clock"}}
+            <span>这篇文章写于 <strong>{{.outdated_years}} 年前</strong>，其中的版本、命令或结论可能已经过时，请注意甄别。</span>
+        </aside>
+        {{end}}
+
         <article class="article-content">
             <div id="post-viewer">
                 <textarea id="append-test" style="display:none;">{{.post.Content}}</textarea>
             </div>
             <noscript><p class="noscript-tip">本文需要启用 JavaScript 才能渲染正文，你也可以通过 <a href="/feed.xml">RSS</a> 阅读全文。</p></noscript>
         </article>
+
+        <footer class="article-footer">
+            <div class="article-license">
+                <p><span class="license-label">本文链接</span><a id="post-permalink" href="{{.canonical}}">{{.canonical}}</a></p>
+                <p><span class="license-label">版权声明</span>本文采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-Hans" target="_blank" rel="noopener license">CC BY-NC-SA 4.0</a> 许可协议，转载请注明出处。</p>
+            </div>
+            <div class="article-actions">
+                <button type="button" class="btn btn-sm" id="share-btn" data-title="{{.post.Title}}">{{template "icon-share"}}分享</button>
+                <button type="button" class="btn btn-sm" id="copy-link-btn">{{template "icon-link"}}复制链接</button>
+            </div>
+        </footer>
+
+        {{if or .newer .older}}
+        <nav class="post-nav" aria-label="上一篇 / 下一篇">
+            {{if .older}}
+            <a class="post-nav-item post-nav-prev" rel="prev" href="/posts/{{.older.Identity}}">
+                <span class="post-nav-label">{{template "icon-arrow-left"}}上一篇</span>
+                <span class="post-nav-title">{{.older.Title}}</span>
+            </a>
+            {{else}}<span class="post-nav-item is-empty" aria-hidden="true"></span>{{end}}
+            {{if .newer}}
+            <a class="post-nav-item post-nav-next" rel="next" href="/posts/{{.newer.Identity}}">
+                <span class="post-nav-label">下一篇{{template "icon-arrow-right"}}</span>
+                <span class="post-nav-title">{{.newer.Title}}</span>
+            </a>
+            {{else}}<span class="post-nav-item is-empty" aria-hidden="true"></span>{{end}}
+        </nav>
+        {{end}}
+
+        {{if .related}}
+        <section class="related" aria-labelledby="related-title">
+            <h2 class="section-title" id="related-title">相关文章</h2>
+            <ul class="related-list">
+                {{range .related}}
+                <li>
+                    <a href="/posts/{{.Identity}}">
+                        <span class="related-title">{{.Title}}</span>
+                        <span class="related-meta">{{.CreatedAt.Format "2006-01-02"}} · {{readingMinutes .WordCount}} 分钟</span>
+                    </a>
+                </li>
+                {{end}}
+            </ul>
+        </section>
+        {{end}}
+
         {{template "comments" .}}
     </div>
     <aside class="article-aside" id="article-aside" aria-label="文章目录"></aside>

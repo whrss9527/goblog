@@ -1,23 +1,27 @@
 package routers
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"goblog/internal/config"
 	ginpkg "goblog/internal/pkg/gin"
 	"goblog/internal/pkg/view"
 )
 
+// testPost is dated relative to "now" (see newTestServer) so age-dependent
+// features such as the outdated notice behave the same whenever the test runs.
 const testPost = `---
 title: "Hello \"Gopher\""
 status: 1
-created_at: 2024-03-15T10:00:00+08:00
-updated_at: 2024-03-15T10:00:00+08:00
+created_at: %[1]s
+updated_at: %[1]s
 category_id: 1
 is_top: 0
 tag_ids: [1]
@@ -30,6 +34,21 @@ word_count: 1234
 ## 小标题
 
 正文 **内容**。
+`
+
+const olderPost = `---
+title: "Older sibling"
+status: 1
+created_at: 2021-01-02T10:00:00+08:00
+updated_at: 2021-01-02T10:00:00+08:00
+category_id: 1
+is_top: 0
+tag_ids: [1]
+description: "older"
+word_count: 800
+---
+
+` + "```go\nfmt.Println(1)\n```" + `
 `
 
 const hiddenPost = `---
@@ -70,7 +89,8 @@ func newTestServer(t *testing.T) http.Handler {
 
 	dataDir := filepath.Join(work, "data")
 	files := map[string]string{
-		"posts/hello.md":  testPost,
+		"posts/hello.md":  fmt.Sprintf(testPost, recentDate().Format(time.RFC3339)),
+		"posts/older.md":  olderPost,
 		"posts/draft.md":  hiddenPost,
 		"pages/about.md":  "---\nid: about\ntitle: \"关于我\"\n---\n\n关于页面正文，足够长的一段介绍文字。",
 		"categories.json": `[{"id":1,"name":"技术"}]`,
@@ -108,6 +128,11 @@ func newTestServer(t *testing.T) http.Handler {
 	return engine
 }
 
+// recentDate is a publication date that is always "one month ago".
+func recentDate() time.Time {
+	return time.Now().AddDate(0, -1, 0)
+}
+
 func get(t *testing.T, h http.Handler, target string) *httptest.ResponseRecorder {
 	t.Helper()
 	rec := httptest.NewRecorder()
@@ -127,7 +152,7 @@ func TestFrontPages(t *testing.T) {
 	}{
 		{
 			name: "home lists published posts with a clean excerpt", target: "/", wantStatus: http.StatusOK,
-			wantContain: []string{`Hello &#34;Gopher&#34;`, "第一行摘要第二行摘要", `href="/?tag_id=1"`, `aria-current="page"`, "1 / 1"},
+			wantContain: []string{`Hello &#34;Gopher&#34;`, "第一行摘要第二行摘要", `href="/?tag_id=1"`, `aria-current="page"`, "1 / 1", "Older sibling"},
 			wantAbsent:  []string{"Draft", "example.com/a.png", "&lt;no value&gt;", "<no value>"},
 		},
 		{
@@ -142,12 +167,26 @@ func TestFrontPages(t *testing.T) {
 			name: "post page", target: "/posts/hello", wantStatus: http.StatusOK,
 			wantContain: []string{`<h1 class="article-title">Hello &#34;Gopher&#34;</h1>`, `rel="canonical" href="https://blog.example.com/posts/hello"`, "/static/js/jquery.min.js", "1234 字", `content="第一行摘要第二行摘要"`},
 		},
+		{
+			name: "post links to its neighbour and related posts", target: "/posts/hello", wantStatus: http.StatusOK,
+			wantContain: []string{`rel="prev" href="/posts/older"`, "相关文章", "Older sibling", "CC BY-NC-SA 4.0"},
+			wantAbsent:  []string{`rel="next"`, "notice-outdated", "Draft"},
+		},
+		{
+			name: "old technical post carries the outdated notice", target: "/posts/older", wantStatus: http.StatusOK,
+			wantContain: []string{"notice-outdated", `rel="next" href="/posts/hello"`},
+			wantAbsent:  []string{`rel="prev"`},
+		},
 		{name: "hidden post is a 404", target: "/posts/draft", wantStatus: http.StatusNotFound, wantContain: []string{"页面不存在", `content="noindex"`}},
 		{name: "missing post is a 404", target: "/posts/nope", wantStatus: http.StatusNotFound, wantContain: []string{"页面不存在"}},
 		{name: "unknown route is a themed 404", target: "/definitely/not/here", wantStatus: http.StatusNotFound, wantContain: []string{"返回首页"}},
 		{name: "page", target: "/pages/about", wantStatus: http.StatusOK, wantContain: []string{"关于我", `id="page-viewer"`}},
 		{name: "missing page is a 404", target: "/pages/nope", wantStatus: http.StatusNotFound},
-		{name: "archive", target: "/archive", wantStatus: http.StatusOK, wantContain: []string{`id="y2024"`, "共 1 篇文章"}, wantAbsent: []string{"Draft"}},
+		{
+			name: "archive", target: "/archive", wantStatus: http.StatusOK,
+			wantContain: []string{fmt.Sprintf(`id="y%d"`, recentDate().Year()), `id="y2021"`, "共 2 篇文章"},
+			wantAbsent:  []string{"Draft"},
+		},
 		{
 			name: "tags hide unused ones and embed heatmap JSON as JSON", target: "/tags", wantStatus: http.StatusOK,
 			wantContain: []string{`href="/?tag_id=1"`, `<script id="heatmap-data" type="application/json">[{`},
