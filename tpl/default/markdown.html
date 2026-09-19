@@ -2,15 +2,17 @@
   Client-side Markdown rendering (editor.md) shared by posts.html and pages.html.
 
   - "markdown-head"    : preview stylesheet, only needed on article-like pages.
-  - "markdown-scripts" : renderer libraries + bootstrap. Must be included in the
-                         layout's "scripts" block, i.e. AFTER jQuery, because
-                         editormd.js dereferences jQuery at load time.
+  - "markdown-scripts" : jQuery + renderer libraries + bootstrap code. jQuery is
+                         only needed by editor.md, so it is loaded here (and
+                         only on article-like pages), and it must come first
+                         because editormd.js dereferences it at load time.
 */}}
 {{define "markdown-head"}}
     <link rel="stylesheet" href="{{.cdn}}/md/css/editormd.preview.css"/>
 {{end}}
 
 {{define "markdown-scripts"}}
+<script src="{{.cdn}}/js/jquery.min.js"></script>
 <script src="{{.cdn}}/md/lib/marked.min.js"></script>
 <script src="{{.cdn}}/md/lib/prettify.min.js"></script>
 <script src="{{.cdn}}/md/editormd.js"></script>

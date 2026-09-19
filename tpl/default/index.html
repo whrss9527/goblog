@@ -1,67 +1,61 @@
 {{define "content"}}
-<div class="container">
-    <div class="content-wrap">
-        <div class="content center  aside">
-            <div class="title">
-                <div class="more">
-                    {{range .categories}}
-                    <a href="/?category_id={{.Id}}">{{.Name}}</a>
-                    {{end}}
-                </div>
+<div class="container container-narrow">
+    <nav class="chips chips-scroll" aria-label="文章分类">
+        <a class="chip{{if and (not .category_id) (not .filter_kind)}} is-active{{end}}" href="/">全部</a>
+        {{range .categories}}
+        <a class="chip{{if eq (printf "%d" .Id) $.category_id}} is-active{{end}}" href="/?category_id={{.Id}}">{{.Name}}</a>
+        {{end}}
+    </nav>
 
-            </div>
-
-            {{if .posts}}
-            {{range .posts}}
-            <div class="excerpt">
-                <header>
-                    <a class="cat" href="/?category_id={{.CategoryId}}">{{.CategoryName}}<i></i></a>
-                    <h2><a href="/posts/{{.Identity}}">{{.Title}}</a></h2>
-                </header>
-                <div class="excerpt-desc">
-                    {{.Description}}
-                </div>
-
-                <p class="meta">
-                    <a class="category" href="/?category_id={{.CategoryId}}">{{template "icon-folder"}} {{.CategoryName}}</a>
-                    <span class="time">{{template "icon-clock"}} <time datetime="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.CreatedAt.Format "2006-01-02"}}</time></span>
-                    <span class="views">{{template "icon-eye"}} {{.Views}}</span>
-                </p>
-
-            </div>
-
-            {{end}}
-            {{else}}
-            <div class="text-center">
-                <h3>
-                    <strong>暂无内容</strong>
-                </h3>
-            </div>
-            {{end}}
-
-            {{if .posts}}
-            <nav aria-label="Page navigation">
-                <ul class="pagination">
-                    {{if gt .page 1}}
-                    <li>
-                        <a href="{{.pre_url}}" aria-label="Previous">
-                            <span aria-hidden="true">上一页</span>
-                        </a>
-                    </li>
-                    {{end}}
-                    <li class="active"><a href="#">第 {{.page}} 页</a></li>
-                    {{if .has_more}}
-                    <li>
-                        <a href="{{.next_url}}" aria-label="Next">
-                            <span aria-hidden="true">下一页</span>
-                        </a>
-                    </li>
-                    {{end}}
-                </ul>
-            </nav>
-            {{end}}
-        </div>
-
+    {{if .filter_kind}}
+    <div class="filter-bar" role="status">
+        <span>{{.filter_kind}}：<strong>{{.filter_label}}</strong>，共 {{.total}} 篇</span>
+        <a class="filter-clear" href="/">清除筛选</a>
     </div>
+    {{end}}
+
+    {{if .posts}}
+    <div class="post-list">
+        {{range .posts}}
+        <article class="post-item">
+            <h2 class="post-title">
+                {{if .IsTop}}<span class="badge-top">{{template "icon-pin"}}置顶</span>{{end}}<a href="/posts/{{.Identity}}">{{.Title}}</a>
+            </h2>
+            {{with excerpt .Description 160}}<p class="post-desc">{{.}}</p>{{end}}
+            <div class="post-meta">
+                <a class="meta-cat" href="/?category_id={{.CategoryId}}">{{.CategoryName}}</a>
+                <span class="meta-item">{{template "icon-calendar"}}<time datetime="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.CreatedAt.Format "2006-01-02"}}</time></span>
+                <span class="meta-item" title="约 {{.WordCount}} 字">{{template "icon-clock"}}{{readingMinutes .WordCount}} 分钟</span>
+                <span class="meta-item" title="阅读 {{.Views}} 次">{{template "icon-eye"}}{{humanCount .Views}}</span>
+                {{if .Tags}}
+                <span class="meta-tags">
+                    {{range .Tags}}<a class="meta-tag" href="/?tag_id={{.Id}}">#{{.Name}}</a>{{end}}
+                </span>
+                {{end}}
+            </div>
+        </article>
+        {{end}}
+    </div>
+
+    <nav class="pager" aria-label="分页">
+        {{if gt .page 1}}
+        <a class="pager-btn" rel="prev" href="{{.pre_url}}">{{template "icon-arrow-left"}}上一页</a>
+        {{else}}
+        <span class="pager-btn is-hidden" aria-hidden="true">上一页</span>
+        {{end}}
+        <span class="pager-info">{{.page}} / {{.total_pages}}</span>
+        {{if .has_more}}
+        <a class="pager-btn" rel="next" href="{{.next_url}}">下一页{{template "icon-arrow-right"}}</a>
+        {{else}}
+        <span class="pager-btn is-hidden" aria-hidden="true">下一页</span>
+        {{end}}
+    </nav>
+    {{else}}
+    <div class="empty-state">
+        <h2>这里还没有内容</h2>
+        <p>{{if .filter_kind}}换个关键词或分类试试？{{else}}过段时间再来看看吧。{{end}}</p>
+        {{if .filter_kind}}<p><a class="btn" href="/">返回全部文章</a></p>{{end}}
+    </div>
+    {{end}}
 </div>
 {{end}}

@@ -99,11 +99,58 @@ func (h *PostHandler) Index(ctx *gin.Context) {
 	for _, category := range categories {
 		categoryMap[category.Id] = category
 	}
+	tagMap := make(map[int]model.Tag)
+	if allTags, err := h.TagRepo.GetTags(); err == nil {
+		for _, tag := range allTags {
+			tagMap[tag.Id] = tag
+		}
+	}
 	for index, post := range posts {
+		posts[index].CreatedAt = post.CreatedAt.In(shanghai)
 		posts[index].UpdatedAt = post.UpdatedAt.In(shanghai)
 		posts[index].CategoryName = categoryMap[post.CategoryId].Name
+		for _, tagId := range post.TagIds {
+			if tag, ok := tagMap[tagId]; ok {
+				posts[index].Tags = append(posts[index].Tags, tag)
+			}
+		}
 	}
+
+	// Describe the active filter so the page can say what is being shown.
+	var filterKind, filterLabel string
+	switch {
+	case keyword != "":
+		filterKind, filterLabel = "搜索", keyword
+	case tagId != "":
+		filterKind = "标签"
+		if id, err := strconv.Atoi(tagId); err == nil {
+			filterLabel = tagMap[id].Name
+		}
+	case categoryId != "":
+		filterKind = "分类"
+		if id, err := strconv.Atoi(categoryId); err == nil {
+			filterLabel = categoryMap[id].Name
+		}
+	}
+	totalPages := int((total + int64(perPage) - 1) / int64(perPage))
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
 	data := make(map[string]any)
+	data["nav"] = "home"
+	data["filter_kind"] = filterKind
+	data["filter_label"] = filterLabel
+	data["category_id"] = categoryId
+	data["total_pages"] = totalPages
+	if filterKind != "" {
+		if filterLabel == "" {
+			filterLabel = "未知"
+			data["filter_label"] = filterLabel
+		}
+		data["title"] = filterKind + "：" + filterLabel
+		data["noindex"] = keyword != ""
+	}
 	data["posts"] = posts
 	data["categories"] = categories
 	data["page"] = page
@@ -160,8 +207,13 @@ func (h *PostHandler) PostInfo(ctx *gin.Context) {
 	data := make(map[string]any)
 	data["post"] = post
 	data["tags"] = tags
+	data["nav"] = "post"
 	data["title"] = post.Title
-	data["description"] = post.Description
+	description := view.Excerpt(post.Description, 160)
+	if description == "" {
+		description = view.Excerpt(post.Content, 160)
+	}
+	data["description"] = description
 	data["identity"] = post.Identity
 	data["pageId"] = "posts-" + post.Id
 	data["canonical"] = h.conf.App.Host + "/posts/" + post.Identity

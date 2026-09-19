@@ -1,36 +1,30 @@
 {{define "head"}}{{template "markdown-head" .}}{{end}}
 
 {{define "content"}}
-<div class="container">
-    <div class="content-wrap">
-        <div class="content">
-            <header class="article-header">
-                <h1 class="article-title">{{.post.Title}}</h1>
-                <div class="article-meta ">
-                    <span class="item category">{{template "icon-folder"}} <a href="/?category_id={{.post.CategoryId}}">{{.post.CategoryName}}</a></span>
-                    <span class="item time">{{template "icon-clock"}} <time datetime="{{.post.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.post.CreatedAt.Format "2006-01-02 15:04"}}</time></span>
-                    {{if .tags}}
-                    <span class="item tags">{{template "icon-tag"}}
-                            {{range .tags}}
-                            <a href="/?tag_id={{.Id}}">{{.Name}}</a>
-                            {{end}}
-                        </span>
-                    {{end}}
-                    <span class="item views">{{template "icon-eye"}} {{.post.Views}}</span>
-                </div>
-            </header>
+<div class="container article-layout" id="article-layout">
+    <div class="article-main">
+        <header class="article-header">
+            <h1 class="article-title">{{.post.Title}}</h1>
+            <div class="article-meta">
+                <span class="item category">{{template "icon-folder"}}<a href="/?category_id={{.post.CategoryId}}">{{.post.CategoryName}}</a></span>
+                <span class="item time">{{template "icon-calendar"}}<time datetime="{{.post.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.post.CreatedAt.Format "2006-01-02 15:04"}}</time></span>
+                <span class="item" title="约 {{.post.WordCount}} 字">{{template "icon-clock"}}{{.post.WordCount}} 字 · {{readingMinutes .post.WordCount}} 分钟</span>
+                <span class="item views" title="阅读 {{.post.Views}} 次">{{template "icon-eye"}}{{humanCount .post.Views}}</span>
+                {{if .tags}}
+                <span class="item tags">{{template "icon-tag"}}{{range .tags}}<a href="/?tag_id={{.Id}}">{{.Name}}</a>{{end}}</span>
+                {{end}}
+            </div>
+        </header>
 
-            <article class="article-content">
-                <div id="post-viewer">
-                    <textarea id="append-test" style="display:none;">{{.post.Content}}</textarea>
-                </div>
-                <noscript><p class="noscript-tip">本文需要启用 JavaScript 才能渲染正文，你也可以通过 <a href="/feed.xml">RSS</a> 阅读全文。</p></noscript>
-            </article>
-            {{template "comments" .}}
-        </div>
-
+        <article class="article-content">
+            <div id="post-viewer">
+                <textarea id="append-test" style="display:none;">{{.post.Content}}</textarea>
+            </div>
+            <noscript><p class="noscript-tip">本文需要启用 JavaScript 才能渲染正文，你也可以通过 <a href="/feed.xml">RSS</a> 阅读全文。</p></noscript>
+        </article>
+        {{template "comments" .}}
     </div>
-
+    <aside class="article-aside" id="article-aside" aria-label="文章目录"></aside>
 </div>
 {{end}}
 

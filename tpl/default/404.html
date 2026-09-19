@@ -1,14 +1,12 @@
 {{define "content"}}
-<div class="container">
-    <div class="content-wrap">
-        <div class="content">
-            <div class="text-center" style="padding: 80px 0;">
-                <h1 style="font-size: 72px; color: #999;">404</h1>
-                <h3>很抱歉，您要找的页面不存在</h3>
-                <p style="margin-top: 20px;">
-                    <a href="/" class="btn btn-default">返回首页</a>
-                </p>
-            </div>
+<div class="container container-narrow">
+    <div class="notfound">
+        <p class="notfound-code" aria-hidden="true">404</p>
+        <h1>很抱歉，您要找的页面不存在</h1>
+        <p>它可能被移动、改名，或者从未存在过。</p>
+        <div class="notfound-actions">
+            <a href="/" class="btn btn-primary">{{template "icon-home"}}返回首页</a>
+            <a href="/archive" class="btn">看看归档</a>
         </div>
     </div>
 </div>

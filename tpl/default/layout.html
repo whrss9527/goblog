@@ -3,15 +3,18 @@
 
 <head>
     <meta charset="utf-8"/>
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <title>{{.title}} | {{.name}}</title>
     <meta name="description" content="{{.description}}"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="generator" content="goblog {{.version}}"/>
     <meta name="color-scheme" content="light dark"/>
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)"/>
+    <meta name="theme-color" content="#1a1a2e" media="(prefers-color-scheme: dark)"/>
+    <meta name="format-detection" content="telephone=no"/>
     {{if .noindex}}<meta name="robots" content="noindex"/>{{end}}
     {{if .canonical}}<link rel="canonical" href="{{.canonical}}"/>{{end}}
     <link rel="alternate" type="application/atom+xml" title="{{.name}}" href="/feed.xml"/>
+    <link rel="icon" href="/favicon.ico"/>
     <meta property="og:title" content="{{.title}}"/>
     <meta property="og:description" content="{{.description}}"/>
     <meta property="og:site_name" content="{{.name}}"/>
@@ -31,10 +34,11 @@
                     theme = 'dark';
                 }
             } catch (e) { /* storage blocked: stay light */ }
-            document.documentElement.setAttribute('data-theme', theme);
+            var root = document.documentElement;
+            root.setAttribute('data-theme', theme);
+            root.className += ' js';
         })();
     </script>
-    <link rel="stylesheet" type="text/css" media="screen" href="{{.cdn}}/css/bootstrap.min.css"/>
     <link rel="stylesheet" href="{{asset "/static/css/style.css"}}">
     {{block "head" .}}{{end}}
     <!-- Google tag (gtag.js) -->
@@ -52,67 +56,67 @@
 </head>
 
 <body>
-<div id="reading-progress"></div>
-<header>
-    <nav class="navbar navbar-default" id="navbar">
-        <div class="container">
-            <div class="navbar-header">
-                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse"
-                        data-target="#header-navbar" aria-expanded="false" aria-label="展开导航">
-                    <span class="sr-only">展开导航</span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                </button>
-                <div class="logo">
-                    <a class="logo-avatar" href="/intro" title="关于作者"><img src="{{.cdn}}/logo.png" alt="" width="50" height="50"></a>
-                    <a class="logo-name" href="/">{{.name}}</a>
-                    <a class="logo-rss" href="/feed.xml" title="RSS 订阅" aria-label="RSS 订阅">{{template "icon-rss"}}</a>
-                </div>
-            </div>
-            <div class="collapse navbar-collapse" id="header-navbar">
-                <form class="navbar-form nav navbar-form navbar-right search-nav" action="/" method="GET" role="search">
-                    <div class="input-group">
-                        <input type="search" name="keyword" class="form-control" placeholder="请输入关键字" maxlength="20"
-                               autocomplete="off" aria-label="搜索文章" value="{{.keyword}}">
-                        <span class="input-group-btn">
-                                <button type="submit" class="btn btn-default btn-search">搜索</button>
-                            </span>
-                    </div>
-                </form>
-                <ul class="nav navbar-nav navbar-right">
-                    <li><a href="/">首页</a></li>
-                    <li><a href="/archive">归档</a></li>
-                    <li><a href="/tags">标签</a></li>
-                    <li><a href="/reading">阅读</a></li>
-                    <li><a href="/pages/about">关于</a></li>
-                    <li>
-                        <span id="dark-toggle" class="theme-switch" role="button" tabindex="0" aria-label="切换明暗主题">
-                            <span class="theme-switch-knob">
-                                <span class="theme-switch-sun">☀️</span>
-                                <span class="theme-switch-moon">🌙</span>
-                            </span>
-                        </span>
-                    </li>
-                </ul>
-            </div>
+<a class="skip-link" href="#main">跳到正文</a>
+<div id="reading-progress" aria-hidden="true"></div>
+
+<header class="site-header" id="site-header">
+    <div class="container header-inner">
+        <div class="brand">
+            <a class="brand-avatar" href="/intro" title="关于作者" aria-label="关于作者">
+                <img src="{{.cdn}}/logo.png" alt="" width="40" height="40">
+            </a>
+            <a class="brand-name" href="/">{{.name}}</a>
         </div>
-    </nav>
+
+        <div class="nav-panel" id="nav-panel">
+            <nav class="site-nav" aria-label="主导航">
+                <a href="/"{{if eq .nav "home"}} aria-current="page"{{end}}>首页</a>
+                <a href="/archive"{{if eq .nav "archive"}} aria-current="page"{{end}}>归档</a>
+                <a href="/tags"{{if eq .nav "tags"}} aria-current="page"{{end}}>标签</a>
+                <a href="/reading"{{if eq .nav "reading"}} aria-current="page"{{end}}>阅读</a>
+                <a href="/pages/about"{{if eq .nav "about"}} aria-current="page"{{end}}>关于</a>
+            </nav>
+            <form class="header-search" action="/" method="GET" role="search">
+                <label class="sr-only" for="header-search-input">搜索文章</label>
+                <input id="header-search-input" type="search" name="keyword" placeholder="搜索文章…" maxlength="20"
+                       autocomplete="off" enterkeyhint="search" value="{{.keyword}}">
+                <button type="submit" aria-label="搜索">{{template "icon-search"}}</button>
+            </form>
+        </div>
+
+        <div class="header-actions">
+            <a class="icon-btn rss-link" href="/feed.xml" title="RSS 订阅" aria-label="RSS 订阅">{{template "icon-rss"}}</a>
+            <button type="button" id="dark-toggle" class="theme-switch" role="switch" aria-checked="false"
+                    aria-label="暗色模式">
+                <span class="theme-switch-knob">
+                    <span class="theme-switch-sun">☀️</span>
+                    <span class="theme-switch-moon">🌙</span>
+                </span>
+            </button>
+            <button type="button" class="icon-btn nav-toggle" id="nav-toggle" aria-expanded="false"
+                    aria-controls="nav-panel" aria-label="菜单">
+                <span class="nav-toggle-open">{{template "icon-menu"}}</span>
+                <span class="nav-toggle-close">{{template "icon-x"}}</span>
+            </button>
+        </div>
+    </div>
 </header>
 
-<main id="main">
+<main id="main" class="site-main">
 {{template "content" .}}
 </main>
 
-<div class="footer">
+<footer class="site-footer">
     <div class="container">
-        <p>whrss.com © 2022–{{.year}} | Powered by <a href="https://github.com/whrss9527">whrss</a> | Based on <a
-                href="https://getbootstrap.com/">Bootstrap</a></p>
+        <p>
+            <span>whrss.com © 2022–{{.year}}</span>
+            <span>Powered by <a href="https://github.com/whrss9527" rel="noopener">whrss</a></span>
+            <span><a href="/feed.xml">RSS</a></span>
+            <span><a href="/sitemap.xml">Sitemap</a></span>
+        </p>
     </div>
-</div>
+</footer>
 
-<script src="{{.cdn}}/js/jquery.min.js"></script>
-<script src="{{.cdn}}/js/bootstrap.min.js"></script>
 <script src="{{asset "/static/js/enhance.js"}}"></script>
 {{block "scripts" .}}{{end}}
 

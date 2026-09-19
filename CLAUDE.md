@@ -61,6 +61,20 @@ The Gin engine is initialized in `internal/pkg/gin/gin.go` (CORS, error handling
 - **Graceful shutdown**: `gin.RunGin` uses `http.Server` + `signal.NotifyContext(SIGINT, SIGTERM)`. Timeout configured via `server.graceful_shutdown_timeout`.
 - **Delete operations**: All delete routes use POST method to prevent CSRF via GET.
 
+### Front-end conventions
+
+- `tpl/default/layout.html` exposes three blocks: `head`, `content`, `scripts`. Page-specific JS must go
+  into `scripts` (rendered after `enhance.js`). Shared partials: `icons.html` (inline SVG icons via
+  `{{template "icon-eye"}}`), `markdown.html` (editor.md renderer + giscus), `heatmap.html`.
+- No CSS/JS framework on the public site: `static/css/style.css` (design tokens in `:root` /
+  `[data-theme="dark"]`) and `static/js/enhance.js` (vanilla). jQuery is loaded only by
+  `markdown-scripts` because editor.md needs it. Bootstrap is used by the admin only.
+- Reference local assets through `{{asset "/static/..."}}` so they get a content fingerprint.
+  Files that also live on the external CDN (`app.cdn`) keep using `{{.cdn}}/...`.
+- Every handler should set `data["nav"]` (`home|archive|tags|reading|about`) for the active nav item. Keys the
+  layout prints unconditionally need a default in `view.RenderStatus`, otherwise html/template prints `<no value>`.
+- Release flow: bump `internal/version/version.go`, add a section to `CHANGELOG.md`, one commit per version.
+
 ### Package Map
 
 - `pkg/` — Generic libraries (cache, utils, exception handling).

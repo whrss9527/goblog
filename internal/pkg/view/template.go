@@ -24,14 +24,21 @@ var funcMap = template.FuncMap{
 	"formatTime": func(t time.Time, layout string) string {
 		return t.Format(layout)
 	},
-	"tagStyle": func(count int) string {
-		sizes := [...]string{"12px", "12px", "15px", "20px", "25px", "30px", "35px", "40px", "45px", "50px", "55px"}
-		if count >= len(sizes) {
-			return "font-size:60px"
+	// tagStyle scales a tag in the cloud by how many posts use it (13px–25px).
+	"tagStyle": func(count int) template.CSS {
+		steps := count - 1
+		if steps < 0 {
+			steps = 0
 		}
-		return fmt.Sprintf("font-size:%s", sizes[count])
+		if steps > 6 {
+			steps = 6
+		}
+		return template.CSS(fmt.Sprintf("font-size:%dpx", 13+steps*2))
 	},
-	"asset": AssetURL,
+	"asset":          AssetURL,
+	"excerpt":        Excerpt,
+	"readingMinutes": ReadingMinutes,
+	"humanCount":     HumanCount,
 }
 
 // assetHashes caches content fingerprints of local static files, keyed by URL path.
@@ -136,8 +143,10 @@ func RenderStatus(status int, data map[string]any, w http.ResponseWriter, tpl st
 	}
 	// Keys printed unconditionally by the layout must exist, otherwise
 	// html/template prints "<no value>".
-	if _, ok := data["keyword"]; !ok {
-		data["keyword"] = ""
+	for _, key := range []string{"keyword", "nav"} {
+		if _, ok := data[key]; !ok {
+			data[key] = ""
+		}
 	}
 
 	t, ok := frontTemplates[tpl]

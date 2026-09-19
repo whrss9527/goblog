@@ -19,8 +19,14 @@
         }
     }
 
+    function syncToggleState() {
+        var toggle = document.getElementById('dark-toggle');
+        if (toggle) { toggle.setAttribute('aria-checked', currentTheme() === 'dark' ? 'true' : 'false'); }
+    }
+
     function applyTheme(theme, persist) {
         root.setAttribute('data-theme', theme);
+        syncToggleState();
         if (persist) {
             try { localStorage.setItem('theme', theme); } catch (e) { /* ignore */ }
         }
@@ -35,15 +41,9 @@
     function initThemeToggle() {
         var toggle = document.getElementById('dark-toggle');
         if (toggle) {
-            var flip = function () {
+            syncToggleState();
+            toggle.addEventListener('click', function () {
                 applyTheme(currentTheme() === 'dark' ? 'light' : 'dark', true);
-            };
-            toggle.addEventListener('click', flip);
-            toggle.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    flip();
-                }
             });
         }
         // Follow OS changes live as long as the visitor never chose explicitly.
@@ -55,6 +55,98 @@
             if (mq.addEventListener) { mq.addEventListener('change', onChange); }
             else if (mq.addListener) { mq.addListener(onChange); }
         }
+    }
+
+    /* ---------- Header: mobile menu, shadow, hide-on-scroll ---------- */
+    function initHeader() {
+        var header = document.getElementById('site-header');
+        var toggle = document.getElementById('nav-toggle');
+        var panel = document.getElementById('nav-panel');
+        if (!header) { return; }
+
+        function setOpen(open) {
+            header.classList.toggle('nav-open', open);
+            if (toggle) {
+                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+                toggle.setAttribute('aria-label', open ? '关闭菜单' : '菜单');
+            }
+        }
+
+        if (toggle && panel) {
+            toggle.addEventListener('click', function () {
+                setOpen(!header.classList.contains('nav-open'));
+            });
+            document.addEventListener('click', function (e) {
+                if (header.classList.contains('nav-open') && !header.contains(e.target)) { setOpen(false); }
+            });
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && header.classList.contains('nav-open')) {
+                    setOpen(false);
+                    toggle.focus();
+                }
+            });
+            window.addEventListener('resize', function () {
+                if (window.innerWidth > 860) { setOpen(false); }
+            });
+        }
+
+        // Shadow once scrolled; on small screens slide away while reading down
+        // and come back on the first scroll up (CSS scopes this to <= 860px).
+        var lastY = window.scrollY;
+        var ticking = false;
+        function update() {
+            ticking = false;
+            var y = window.scrollY;
+            header.classList.toggle('is-scrolled', y > 4);
+            if (Math.abs(y - lastY) > 6) {
+                header.classList.toggle('is-hidden', y > lastY && y > 160);
+                lastY = y;
+            }
+        }
+        window.addEventListener('scroll', function () {
+            if (!ticking) {
+                ticking = true;
+                window.requestAnimationFrame(update);
+            }
+        }, {passive: true});
+        update();
+    }
+
+    /* ---------- Floating buttons ---------- */
+    var ICON_UP = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>';
+    var ICON_LIST = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>';
+
+    function fabStack() {
+        var stack = document.getElementById('fab-stack');
+        if (!stack) {
+            stack = document.createElement('div');
+            stack.id = 'fab-stack';
+            stack.className = 'fab-stack';
+            document.body.appendChild(stack);
+        }
+        return stack;
+    }
+
+    function initBackToTop() {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'fab fab-top is-off';
+        btn.setAttribute('aria-label', '回到顶部');
+        btn.innerHTML = ICON_UP;
+        btn.addEventListener('click', function () {
+            window.scrollTo({top: 0, behavior: 'smooth'});
+        });
+        fabStack().appendChild(btn);
+
+        var ticking = false;
+        window.addEventListener('scroll', function () {
+            if (ticking) { return; }
+            ticking = true;
+            window.requestAnimationFrame(function () {
+                ticking = false;
+                btn.classList.toggle('is-off', window.scrollY < 600);
+            });
+        }, {passive: true});
     }
 
     /* ---------- Reading progress bar ---------- */
@@ -206,17 +298,49 @@
         });
     }
 
+    /* ---------- Article content helpers ---------- */
+    function wrapTables() {
+        var tables = document.querySelectorAll('.article-content table');
+        Array.prototype.forEach.call(tables, function (table) {
+            if (table.parentNode.classList.contains('table-wrapper')) { return; }
+            var wrapper = document.createElement('div');
+            wrapper.className = 'table-wrapper';
+            wrapper.setAttribute('tabindex', '0');
+            wrapper.setAttribute('role', 'region');
+            wrapper.setAttribute('aria-label', '表格（可横向滚动）');
+            table.parentNode.insertBefore(wrapper, table);
+            wrapper.appendChild(table);
+        });
+    }
+
+    function markExternalLinks() {
+        var links = document.querySelectorAll('.article-content a[href]');
+        Array.prototype.forEach.call(links, function (a) {
+            var url;
+            try { url = new URL(a.getAttribute('href'), location.href); } catch (e) { return; }
+            if (!/^https?:$/.test(url.protocol) || url.origin === location.origin) { return; }
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+        });
+    }
+
     /* ---------- Table of contents ---------- */
     function buildTOC(headings) {
-        var minLevel = 6;
+        // Indent by rank of the heading levels actually used, so an article that
+        // jumps from h2 straight to h4 still gets a tidy two-level outline.
+        var used = [];
         Array.prototype.forEach.call(headings, function (h) {
             var level = parseInt(h.tagName.charAt(1), 10);
-            if (level < minLevel) { minLevel = level; }
+            if (used.indexOf(level) < 0) { used.push(level); }
         });
+        used.sort();
 
         var toc = document.createElement('nav');
         toc.className = 'toc-container';
         toc.setAttribute('aria-label', '文章目录');
+        var handle = document.createElement('div');
+        handle.className = 'toc-sheet-handle';
+        toc.appendChild(handle);
         var title = document.createElement('div');
         title.className = 'toc-title';
         title.textContent = '目录';
@@ -227,58 +351,106 @@
             var id = 'toc-heading-' + i;
             heading.id = id;
 
-            var level = parseInt(heading.tagName.charAt(1), 10) - minLevel;
+            var level = Math.min(4, used.indexOf(parseInt(heading.tagName.charAt(1), 10)));
             var li = document.createElement('li');
             li.className = 'toc-level-' + level;
             var a = document.createElement('a');
             a.href = '#' + id;
             a.textContent = heading.textContent;
-            a.addEventListener('click', function (e) {
-                e.preventDefault();
-                heading.scrollIntoView({behavior: 'smooth', block: 'start'});
-            });
             li.appendChild(a);
             ul.appendChild(li);
         });
         toc.appendChild(ul);
-        document.body.appendChild(toc);
 
-        // Mobile: toggle button + overlay
-        var toggleBtn = document.createElement('button');
-        toggleBtn.type = 'button';
-        toggleBtn.className = 'toc-toggle';
-        toggleBtn.setAttribute('aria-label', '打开目录');
-        toggleBtn.textContent = '☰';
+        var layout = document.getElementById('article-layout');
+        var aside = document.getElementById('article-aside');
         var overlay = document.createElement('div');
         overlay.className = 'toc-overlay';
         document.body.appendChild(overlay);
-        document.body.appendChild(toggleBtn);
 
-        function closeMobileToc() {
-            toc.classList.remove('mobile-visible');
-            overlay.classList.remove('visible');
+        var toggleBtn = document.createElement('button');
+        toggleBtn.type = 'button';
+        toggleBtn.className = 'fab fab-toc';
+        toggleBtn.setAttribute('aria-label', '文章目录');
+        toggleBtn.setAttribute('aria-expanded', 'false');
+        toggleBtn.innerHTML = ICON_LIST;
+        var stack = fabStack();
+        stack.insertBefore(toggleBtn, stack.firstChild);
+
+        // >= 1100px the TOC lives in the sticky sidebar, below it is a bottom sheet.
+        var wide = window.matchMedia('(min-width: 1100px)');
+        function place() {
+            closeSheet();
+            if (wide.matches && aside) {
+                toc.classList.remove('is-sheet');
+                aside.appendChild(toc);
+            } else {
+                toc.classList.add('is-sheet');
+                document.body.appendChild(toc);
+            }
         }
 
+        function closeSheet() {
+            toc.classList.remove('mobile-visible');
+            overlay.classList.remove('visible');
+            toggleBtn.setAttribute('aria-expanded', 'false');
+            document.documentElement.style.overflow = '';
+        }
+
+        function openSheet() {
+            toc.classList.add('mobile-visible');
+            overlay.classList.add('visible');
+            toggleBtn.setAttribute('aria-expanded', 'true');
+            document.documentElement.style.overflow = 'hidden';
+            var active = toc.querySelector('a.active');
+            if (active) { active.scrollIntoView({block: 'center'}); }
+        }
+
+        if (layout) { layout.classList.add('has-toc'); }
+        place();
+        if (wide.addEventListener) { wide.addEventListener('change', place); }
+        else if (wide.addListener) { wide.addListener(place); }
+
         toggleBtn.addEventListener('click', function () {
-            var open = toc.classList.toggle('mobile-visible');
-            overlay.classList.toggle('visible', open);
+            if (toc.classList.contains('mobile-visible')) { closeSheet(); } else { openSheet(); }
         });
-        overlay.addEventListener('click', closeMobileToc);
+        overlay.addEventListener('click', closeSheet);
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { closeSheet(); }
+        });
+
         var tocLinks = toc.querySelectorAll('a');
-        Array.prototype.forEach.call(tocLinks, function (link) {
-            link.addEventListener('click', closeMobileToc);
+        toc.addEventListener('click', function (e) {
+            var link = e.target.closest ? e.target.closest('a') : null;
+            if (!link) { return; }
+            e.preventDefault();
+            closeSheet();
+            var target = document.getElementById(link.getAttribute('href').slice(1));
+            if (target) {
+                target.scrollIntoView({behavior: 'smooth', block: 'start'});
+                if (history.replaceState) { history.replaceState(null, '', link.getAttribute('href')); }
+            }
         });
 
         // Scroll spy
         var ticking = false;
+        var lastActive = null;
         function spy() {
             ticking = false;
-            var current = '';
+            var current = headings[0].id;
             Array.prototype.forEach.call(headings, function (heading) {
-                if (heading.getBoundingClientRect().top <= 100) { current = heading.id; }
+                if (heading.getBoundingClientRect().top <= 110) { current = heading.id; }
             });
+            if (current === lastActive) { return; }
+            lastActive = current;
             Array.prototype.forEach.call(tocLinks, function (link) {
-                link.classList.toggle('active', link.getAttribute('href') === '#' + current);
+                var on = link.getAttribute('href') === '#' + current;
+                link.classList.toggle('active', on);
+                if (on && !toc.classList.contains('is-sheet') && toc.scrollHeight > toc.clientHeight) {
+                    // keep the active entry visible inside a long sidebar TOC
+                    var top = link.offsetTop - toc.clientHeight / 2;
+                    toc.scrollTop = Math.max(0, top);
+                }
             });
         }
         window.addEventListener('scroll', function () {
@@ -294,6 +466,8 @@
     window.enhancePost = function () {
         addCodeCopyButtons();
         addImageLazyLoading();
+        wrapTables();
+        markExternalLinks();
         var viewer = document.getElementById('post-viewer');
         if (viewer) {
             var headings = viewer.querySelectorAll('h1, h2, h3, h4, h5');
@@ -303,6 +477,8 @@
 
     function init() {
         initThemeToggle();
+        initHeader();
+        initBackToTop();
         initReadingProgress();
         initTitleGimmick();
         initPrefetch();

@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"log/slog"
 	"os"
+	"sort"
 
 	"github.com/gin-gonic/gin"
 
@@ -41,7 +42,18 @@ func (handler *TagHandler) Tag(ctx *gin.Context) {
 		ctx.Writer.WriteHeader(500)
 		return
 	}
+	// Hide unused tags and put the most used ones first.
+	visible := tags[:0]
+	for _, tag := range tags {
+		if tag.Count > 0 {
+			visible = append(visible, tag)
+		}
+	}
+	tags = visible
+	sort.SliceStable(tags, func(i, j int) bool { return tags[i].Count > tags[j].Count })
+
 	data := make(map[string]any)
+	data["nav"] = "tags"
 	data["title"] = "标签"
 	data["description"] = "了迹奇有没的博客标签"
 	data["tags"] = tags

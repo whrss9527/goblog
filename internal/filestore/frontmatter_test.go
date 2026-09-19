@@ -152,3 +152,82 @@ func TestPageToFrontmatterRoundTrip(t *testing.T) {
 	assert.Equal(t, "About Me", meta["title"])
 	assert.Equal(t, page.Content, content)
 }
+
+func TestParseFrontmatter_MultiLineQuotedValue(t *testing.T) {
+	raw := "---\n" +
+		"title: \"多行摘要\"\n" +
+		"status: 1\n" +
+		"description: \"第一行\n" +
+		"![img](https://example.com/a.png)\n" +
+		"status: 0\n" +
+		"---\n" +
+		"最后一行 \\\"带引号\\\"\"\n" +
+		"word_count: 42\n" +
+		"---\n\n" +
+		"正文"
+
+	meta, content := parseFrontmatter(raw)
+
+	assert.Equal(t, "多行摘要", meta["title"])
+	assert.Equal(t, "1", meta["status"], "a key-looking line inside a quoted value must not override real keys")
+	assert.Equal(t, "第一行\n![img](https://example.com/a.png)\nstatus: 0\n---\n最后一行 \"带引号\"", meta["description"])
+	assert.Equal(t, "42", meta["word_count"])
+	assert.Equal(t, "正文", content)
+}
+
+func TestParseFrontmatter_TrailingNewlineInsideQuotes(t *testing.T) {
+	// This is what the admin textarea used to produce: the closing quote sits
+	// alone on the next line.
+	raw := "---\ntitle: \"T\"\ndescription: \"只有一行。\n\"\nword_count: 7\n---\n\nbody"
+
+	meta, content := parseFrontmatter(raw)
+
+	assert.Equal(t, "只有一行。\n", meta["description"])
+	assert.Equal(t, "7", meta["word_count"])
+	assert.Equal(t, "body", content)
+}
+
+func TestPostToFrontmatterRoundTrip_Backslashes(t *testing.T) {
+	original := &model.Post{
+		Title:       `C:\temp\`,
+		Status:      1,
+		Description: `regex \d+ and a trailing slash \`,
+		Content:     "content",
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	r := &FileRepository{}
+	parsed := r.parsePost(postToFrontmatter(original), "backslash")
+
+	assert.Equal(t, original.Title, parsed.Title)
+	assert.Equal(t, original.Description, parsed.Description)
+	assert.Equal(t, 1, parsed.Status)
+}
+
+func TestParseFrontmatter_UnterminatedQuoteFallsBack(t *testing.T) {
+	raw := "---\ntitle: \"Broken\nstatus: 1\n---\n\nbody"
+
+	meta, content := parseFrontmatter(raw)
+
+	assert.Equal(t, "1", meta["status"])
+	assert.Equal(t, "body", content)
+}
+
+func TestPostToFrontmatterRoundTrip_MultiLineDescription(t *testing.T) {
+	original := &model.Post{
+		Title:       "Multi",
+		Status:      1,
+		Description: "line one\nline \"two\"\nkey: value",
+		Content:     "content",
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	r := &FileRepository{}
+	parsed := r.parsePost(postToFrontmatter(original), "multi")
+
+	assert.Equal(t, original.Description, parsed.Description)
+	assert.Equal(t, 1, parsed.Status)
+	assert.Equal(t, "content", parsed.Content)
+}

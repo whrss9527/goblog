@@ -10,9 +10,85 @@ import (
 	"goblog/internal/pkg/model"
 )
 
+// parseFrontmatter splits a document into its "key: value" header and the
+// Markdown body. Values may be double-quoted; a quoted value may span several
+// lines (descriptions written in the admin textarea do), in which case lines
+// are collected until the closing quote. Inside a quoted value neither a "---"
+// line nor a "key: value" looking line is treated as structure.
 func parseFrontmatter(raw string) (meta map[string]string, content string) {
 	meta = make(map[string]string)
 	raw = strings.TrimSpace(raw)
+	if !strings.HasPrefix(raw, "---") {
+		return meta, raw
+	}
+
+	lines := strings.Split(raw[3:], "\n")
+	parsed := make(map[string]string)
+	closed := false
+	bodyStart := 0
+
+	var quotedKey string
+	var quoted []string
+
+	for i := 1; i < len(lines); i++ { // lines[0] is the remainder of the opening "---" line
+		line := strings.TrimRight(lines[i], "\r")
+
+		if quotedKey != "" {
+			if endsWithUnescapedQuote(line) {
+				trimmed := strings.TrimRight(line, " \t")
+				quoted = append(quoted, trimmed[:len(trimmed)-1])
+				parsed[quotedKey] = unescapeQuoted(strings.Join(quoted, "\n"))
+				quotedKey, quoted = "", nil
+			} else {
+				quoted = append(quoted, line)
+			}
+			continue
+		}
+
+		if strings.HasPrefix(line, "---") {
+			closed = true
+			bodyStart = i + 1
+			break
+		}
+
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		colonIdx := strings.Index(trimmed, ":")
+		if colonIdx < 0 {
+			continue
+		}
+		key := strings.TrimSpace(trimmed[:colonIdx])
+		val := strings.TrimSpace(trimmed[colonIdx+1:])
+		switch {
+		case len(val) >= 2 && val[0] == '"' && endsWithUnescapedQuote(val):
+			parsed[key] = unescapeQuoted(val[1 : len(val)-1])
+		case len(val) >= 1 && val[0] == '"':
+			// opening quote without a closing one: multi-line value
+			quotedKey = key
+			quoted = []string{val[1:]}
+		default:
+			parsed[key] = val
+		}
+	}
+
+	if !closed {
+		if quotedKey != "" {
+			// A quote was opened but never closed, so the multi-line scan ran past
+			// the real end of the header. Fall back to the line-based parser.
+			return parseFrontmatterLegacy(raw)
+		}
+		return meta, raw
+	}
+	content = strings.TrimSpace(strings.Join(lines[bodyStart:], "\n"))
+	return parsed, content
+}
+
+// parseFrontmatterLegacy is the original single-line parser, kept as a safety
+// net for headers with unbalanced quotes.
+func parseFrontmatterLegacy(raw string) (meta map[string]string, content string) {
+	meta = make(map[string]string)
 	if !strings.HasPrefix(raw, "---") {
 		return meta, raw
 	}
@@ -36,12 +112,41 @@ func parseFrontmatter(raw string) (meta map[string]string, content string) {
 		key := strings.TrimSpace(line[:colonIdx])
 		val := strings.TrimSpace(line[colonIdx+1:])
 		if len(val) >= 2 && val[0] == '"' && val[len(val)-1] == '"' {
-			val = val[1 : len(val)-1]
-			val = strings.ReplaceAll(val, `\"`, `"`)
+			val = unescapeQuoted(val[1 : len(val)-1])
 		}
 		meta[key] = val
 	}
-	return
+	return meta, content
+}
+
+// endsWithUnescapedQuote reports whether s (ignoring trailing blanks) ends
+// with a double quote that is not escaped by a backslash.
+func endsWithUnescapedQuote(s string) bool {
+	s = strings.TrimRight(s, " \t")
+	if !strings.HasSuffix(s, `"`) {
+		return false
+	}
+	backslashes := 0
+	for i := len(s) - 2; i >= 0 && s[i] == '\\'; i-- {
+		backslashes++
+	}
+	return backslashes%2 == 0
+}
+
+// quotedEscaper / quotedUnescaper implement the tiny escaping scheme used for
+// double-quoted values: backslash and double quote are backslash-escaped.
+// Escaping the backslash itself keeps a value that ends in "\" unambiguous.
+var (
+	quotedEscaper   = strings.NewReplacer(`\`, `\\`, `"`, `\"`)
+	quotedUnescaper = strings.NewReplacer(`\\`, `\`, `\"`, `"`)
+)
+
+func escapeQuoted(s string) string {
+	return quotedEscaper.Replace(s)
+}
+
+func unescapeQuoted(s string) string {
+	return quotedUnescaper.Replace(s)
 }
 
 func (r *FileRepository) parsePost(raw string, slug string) *model.Post {
@@ -81,8 +186,8 @@ func (r *FileRepository) parsePost(raw string, slug string) *model.Post {
 
 func postToFrontmatter(post *model.Post) string {
 	tagIds, _ := json.Marshal(post.TagIds)
-	desc := strings.ReplaceAll(post.Description, "\"", "\\\"")
-	title := strings.ReplaceAll(post.Title, "\"", "\\\"")
+	desc := escapeQuoted(strings.TrimSpace(post.Description))
+	title := escapeQuoted(strings.TrimSpace(post.Title))
 
 	var b strings.Builder
 	b.WriteString("---\n")
@@ -102,7 +207,7 @@ func postToFrontmatter(post *model.Post) string {
 }
 
 func pageToFrontmatter(page model.Page) string {
-	title := strings.ReplaceAll(page.Title, "\"", "\\\"")
+	title := escapeQuoted(strings.TrimSpace(page.Title))
 	var b strings.Builder
 	b.WriteString("---\n")
 	fmt.Fprintf(&b, "id: %s\n", page.Id)

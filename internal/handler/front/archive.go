@@ -48,6 +48,7 @@ func (h *ArchiveHandler) Archive(ctx *gin.Context) {
 	}
 
 	data := make(map[string]any)
+	data["nav"] = "archive"
 	data["title"] = "归档"
 	data["description"] = "文章归档"
 	data["archives"] = archives

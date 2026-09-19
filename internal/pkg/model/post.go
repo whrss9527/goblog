@@ -21,4 +21,6 @@ type Post struct {
 	CategoryName string
 	Content      string
 	TagNames     []string
+	// Tags is filled by handlers for display; it is not persisted.
+	Tags []Tag
 }

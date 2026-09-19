@@ -1,23 +1,16 @@
 {{define "content"}}
+<div class="container container-narrow">
+    <header class="page-header">
+        <h1>标签</h1>
+        <p class="page-sub"><span>共 {{len .tags}} 个标签</span><span>点击标签查看相关文章</span></p>
+    </header>
 
-<div class="container">
-    <div class="">
-        <div class="text-center">
-            <div class="widget widget_sentence">
-                <ul>
-                    {{range .tags}}
-                    <li><a style={{tagStyle .Count}} href="/?tag_id={{.Id}}">{{.Name}} <span
-                            class="badge">{{.Count}}</span></a></li>
-                    {{end}}
-                </ul>
-            </div>
+    <ul class="tag-cloud">
+        {{range .tags}}
+        <li><a class="tag-pill" style="{{tagStyle .Count}}" href="/?tag_id={{.Id}}">{{.Name}}<span class="tag-count">{{.Count}}</span></a></li>
+        {{end}}
+    </ul>
 
-        </div>
-    </div>
     {{template "heatmap" .}}
-
 </div>
-<div style="height: 400px;"></div>
-
-
 {{end}}

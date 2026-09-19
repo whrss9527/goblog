@@ -65,6 +65,7 @@ func (h *BookHandler) ReadingList(ctx *gin.Context) {
 	}
 
 	data := make(map[string]any)
+	data["nav"] = "reading"
 	data["title"] = "阅读清单"
 	data["description"] = "我的阅读清单"
 	data["book_years"] = bookYears

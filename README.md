@@ -9,9 +9,11 @@
 - **公开前台**：首页、文章页、标签页、分类页、阅读清单、关于页、站内搜索（基于内存索引）。
 - **RSS / Atom**：启动时生成 `/feed.xml`。
 - **Sitemap**：`/sitemap.xml`。
-- **评论**：基于 [utterances](https://utteranc.es/) GitHub Issues 评论组件。
+- **评论**：基于 [giscus](https://giscus.app/) GitHub Discussions 评论组件（滚动到附近才加载）。
 - **热力图**：每小时定时聚合写入 `heatmap.txt`，用于贡献图展示。
 - **优雅退出**：`SIGTERM` 触发，超时时间可配。
+- **多端适配**：前台无框架依赖（CSS 变量 + 原生 JS），手机 / 平板 / 桌面自适应，明暗主题跟随系统，
+  文章目录在宽屏为粘性侧栏、窄屏为底部抽屉。版本变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 技术栈
 

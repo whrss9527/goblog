@@ -28,8 +28,15 @@ func (h *PageHandler) Page(ctx *gin.Context) {
 		return
 	}
 	data := make(map[string]any)
+	if pageId == "about" {
+		data["nav"] = "about"
+	}
 	data["title"] = page.Title
-	data["description"] = page.Title
+	description := view.Excerpt(page.Content, 160)
+	if description == "" {
+		description = page.Title
+	}
+	data["description"] = description
 	data["page"] = page
 	data["page_id"] = "page-" + pageId
 	data["canonical"] = h.config.App.Host + "/pages/" + pageId
