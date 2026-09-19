@@ -14,13 +14,13 @@ import (
 	"goblog/internal/filestore"
 	"goblog/internal/handler/front"
 	"goblog/internal/pkg/model"
-	"goblog/internal/pkg/utils"
 	"goblog/internal/pkg/view"
 	"goblog/internal/repository"
 )
 
 type PostHandler struct {
 	PostRepo       repository.PostRepository
+	DraftRepo      repository.DraftRepository
 	CategoryRepo   repository.CategoryRepository
 	TagRepo        repository.TagRepository
 	feedHandler    *front.FeedHandler
@@ -28,9 +28,10 @@ type PostHandler struct {
 	config         *config.Config
 }
 
-func NewPostHandler(postRepo repository.PostRepository, categoryRepo repository.CategoryRepository, tagRepo repository.TagRepository, feedHandler *front.FeedHandler, sitemapHandler *front.SitemapHandler, config *config.Config) *PostHandler {
+func NewPostHandler(postRepo repository.PostRepository, draftRepo repository.DraftRepository, categoryRepo repository.CategoryRepository, tagRepo repository.TagRepository, feedHandler *front.FeedHandler, sitemapHandler *front.SitemapHandler, config *config.Config) *PostHandler {
 	return &PostHandler{
 		PostRepo:       postRepo,
+		DraftRepo:      draftRepo,
 		CategoryRepo:   categoryRepo,
 		TagRepo:        tagRepo,
 		feedHandler:    feedHandler,
@@ -68,15 +69,39 @@ func (h *PostHandler) PostList(ctx *gin.Context) {
 		posts[index].CreatedAt = post.CreatedAt.In(adminZone)
 		posts[index].UpdatedAt = post.UpdatedAt.In(adminZone)
 	}
+	drafts, err := h.DraftRepo.GetDrafts()
+	if err != nil {
+		slog.Error("get drafts failed", "err", err)
+	}
+	for index, draft := range drafts {
+		drafts[index].UpdatedAt = draft.UpdatedAt.In(adminZone)
+	}
 	data := make(map[string]interface{})
 	data["posts"] = posts
+	data["drafts"] = drafts
 	data["categories"] = categories
 	data["csrf_token"], _ = ctx.Get("csrf_token")
 	view.AdminRender(data, ctx.Writer, "posts/list", h.config.App)
 }
 
-// PostAdd 处理文章添加请求
+// PostAdd 处理文章添加请求: a new post, an existing one (?id=) or a draft (?draft=).
 func (h *PostHandler) PostAdd(ctx *gin.Context) {
+	if slug := ctx.Query("draft"); slug != "" {
+		draft, err := h.DraftRepo.GetDraft(slug)
+		if err != nil {
+			data := map[string]interface{}{"msg": "没有找到这份草稿，它可能已经发布或被删除"}
+			view.AdminRenderStatus(http.StatusNotFound, data, ctx.Writer, "401", h.config.App)
+			return
+		}
+		tags := strings.Join(draft.TagNames, ",")
+		if tags == "" {
+			tags = h.getTags(draft)
+		}
+		draft.Id = "" // not published yet
+		h.renderEditor(ctx, http.StatusOK, draft, tags, slug, "")
+		return
+	}
+
 	id := ctx.Request.FormValue("id")
 	var post model.Post
 	if len(id) > 0 {
@@ -89,12 +114,13 @@ func (h *PostHandler) PostAdd(ctx *gin.Context) {
 			return
 		}
 	}
-	h.renderEditor(ctx, http.StatusOK, post, h.getTags(post), "")
+	h.renderEditor(ctx, http.StatusOK, post, h.getTags(post), "", "")
 }
 
 // renderEditor shows the post editor, either for PostAdd or to hand a rejected
-// save back to the author with everything they typed still in place.
-func (h *PostHandler) renderEditor(ctx *gin.Context, status int, post model.Post, tags string, problem string) {
+// save back to the author with everything they typed still in place. draft is
+// the slug of the stored draft being edited ("" if there is none).
+func (h *PostHandler) renderEditor(ctx *gin.Context, status int, post model.Post, tags string, draft string, problem string) {
 	data := make(map[string]interface{})
 	categories, _ := h.CategoryRepo.GetCategories()
 	for i := range categories {
@@ -102,6 +128,7 @@ func (h *PostHandler) renderEditor(ctx *gin.Context, status int, post model.Post
 	}
 	data["categories"] = categories
 	data["id"] = post.Id
+	data["draft"] = draft
 	data["title"] = post.Title
 	data["description"] = post.Description
 	data["content"] = post.Content
@@ -121,21 +148,31 @@ func (h *PostHandler) renderEditor(ctx *gin.Context, status int, post model.Post
 			}
 		}
 	}
+	if drafts, err := h.DraftRepo.GetDrafts(); err == nil {
+		for _, d := range drafts {
+			if d.Identity != draft {
+				slugs = append(slugs, d.Identity)
+			}
+		}
+	}
 	var tagNames []string
 	if allTags, err := h.TagRepo.GetTags(); err == nil {
 		// most used first: those are the ones worth a tap
 		sort.SliceStable(allTags, func(i, j int) bool { return allTags[i].Count > allTags[j].Count })
 		for _, tag := range allTags {
-			tagNames = append(tagNames, tag.Name)
+			if name := strings.TrimSpace(tag.Name); name != "" {
+				tagNames = append(tagNames, name)
+			}
 		}
 	}
 	data["slugs_json"] = toJSON(slugs)
-	data["all_tags_json"] = toJSON(tagNames)
+	data["all_tags_json"] = toJSON(uniqueStrings(tagNames))
 
 	view.AdminRenderStatus(status, data, ctx.Writer, "posts/add", h.config.App)
 }
 
-// PostSave 处理文章保存请求
+// PostSave 处理文章保存请求。action=draft keeps an unpublished post as a private
+// draft, anything else publishes.
 func (h *PostHandler) PostSave(ctx *gin.Context) {
 	var post model.Post
 	post.Id = ctx.Request.FormValue("id")
@@ -146,6 +183,8 @@ func (h *PostHandler) PostSave(ctx *gin.Context) {
 	tags := ctx.Request.FormValue("tags")
 	post.Identity = strings.TrimSpace(ctx.Request.FormValue("identity"))
 	post.Status = 1
+	draft := strings.TrimSpace(ctx.Request.FormValue("draft"))
+	asDraft := ctx.Request.FormValue("action") == "draft" && post.Id == "" // a published post is never turned back into a draft
 
 	// Validate before anything is written. A slug that stays as it is always
 	// passes: a few old posts have addresses the rules below would refuse.
@@ -161,15 +200,33 @@ func (h *PostHandler) PostSave(ctx *gin.Context) {
 		}
 	}
 	if problem != "" {
-		h.renderEditor(ctx, http.StatusUnprocessableEntity, post, tags, problem)
+		h.renderEditor(ctx, http.StatusUnprocessableEntity, post, tags, draft, problem)
+		return
+	}
+
+	if asDraft {
+		post.TagNames = splitTags(tags)
+		post.TagIds = h.existingTagIds(post.TagNames)
+		if err := h.DraftRepo.SaveDraft(post, draft); err != nil {
+			slog.Error("save draft failed", "err", err, "slug", post.Identity)
+			h.renderEditor(ctx, http.StatusUnprocessableEntity, post, tags, draft, saveErrorMessage(err))
+			return
+		}
+		target := "/admin/posts/add?draft=" + url.QueryEscape(post.Identity) + "&saved=" + url.QueryEscape(post.Identity)
+		http.Redirect(ctx.Writer, ctx.Request, target, http.StatusFound)
 		return
 	}
 
 	post.TagIds = h.getTagIds(tags)
 	if _, err := h.PostRepo.PostSave(post); err != nil {
 		slog.Error("save post failed", "err", err, "slug", post.Identity)
-		h.renderEditor(ctx, http.StatusUnprocessableEntity, post, tags, saveErrorMessage(err))
+		h.renderEditor(ctx, http.StatusUnprocessableEntity, post, tags, draft, saveErrorMessage(err))
 		return
+	}
+	if draft != "" {
+		if err := h.DraftRepo.DeleteDraft(draft); err != nil {
+			slog.Error("delete published draft failed", "err", err, "slug", draft)
+		}
 	}
 	h.feedHandler.GenerateFeedXml()
 	h.sitemapHandler.GenerateSitemap()
@@ -178,6 +235,39 @@ func (h *PostHandler) PostSave(ctx *gin.Context) {
 		slog.Error("recalc tag counts failed", "err", err)
 	}
 	http.Redirect(ctx.Writer, ctx.Request, "/admin?saved="+url.QueryEscape(post.Identity), http.StatusFound)
+}
+
+// DraftDelete removes a draft.
+func (h *PostHandler) DraftDelete(ctx *gin.Context) {
+	if err := h.DraftRepo.DeleteDraft(ctx.Param("slug")); err != nil {
+		slog.Error("delete draft failed", "err", err)
+		data := map[string]interface{}{"msg": "删除草稿失败，请重试"}
+		view.AdminRenderStatus(http.StatusInternalServerError, data, ctx.Writer, "401", h.config.App)
+		return
+	}
+	http.Redirect(ctx.Writer, ctx.Request, "/admin", http.StatusFound)
+}
+
+// DraftPreview shows a draft the way the published post will look.
+func (h *PostHandler) DraftPreview(ctx *gin.Context) {
+	draft, err := h.DraftRepo.GetDraft(ctx.Query("draft"))
+	if err != nil {
+		data := map[string]interface{}{"msg": "没有找到这份草稿，它可能已经发布或被删除"}
+		view.AdminRenderStatus(http.StatusNotFound, data, ctx.Writer, "401", h.config.App)
+		return
+	}
+	if category, err := h.CategoryRepo.GetCategory(draft.CategoryId); err == nil {
+		draft.CategoryName = category.Name
+	}
+	names := draft.TagNames
+	if len(names) == 0 {
+		names = splitTags(h.getTags(draft))
+	}
+	tags := make([]model.Tag, 0, len(names))
+	for _, name := range names {
+		tags = append(tags, model.Tag{Name: name})
+	}
+	front.RenderPostPreview(ctx, h.config.App, draft, tags)
 }
 
 // PostDelete 处理文章删除请求
@@ -218,27 +308,68 @@ func (h *PostHandler) getTags(post model.Post) string {
 	return strings.Join(tags, ",")
 }
 
-// getTagIds 根据标签名称获取标签 ID 列表
-func (h *PostHandler) getTagIds(tags string) (tagIds []int) {
-	tagNames := strings.Split(tags, ",")
-	tagNames = utils.RemoveDuplicateElement(tagNames)
-	allTags, _ := h.TagRepo.GetTags()
-	var allTagNames []string
-	allTagByName := make(map[string]model.Tag)
-	for _, tag := range allTags {
-		allTagNames = append(allTagNames, tag.Name)
-		allTagByName[tag.Name] = tag
+// splitTags parses the tags field: separated by commas (also the full-width
+// one), trimmed, without empties and duplicates. It used to be split on ","
+// only and not trimmed, so "go, mysql" created a second tag named " mysql" and
+// an empty field created a tag without a name.
+func splitTags(tags string) []string {
+	parts := strings.FieldsFunc(tags, func(r rune) bool { return r == ',' || r == '，' })
+	names := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if name := strings.TrimSpace(part); name != "" {
+			names = append(names, name)
+		}
 	}
-	for _, tagName := range tagNames {
-		if utils.StrInArray(tagName, allTagNames) {
-			tagIds = append(tagIds, allTagByName[tagName].Id)
-		} else {
-			var newTag model.Tag
-			newTag.Name = tagName
-			newTagId, _ := h.TagRepo.AddTag(newTag)
-			if newTagId > 0 {
-				tagIds = append(tagIds, newTagId)
-			}
+	return uniqueStrings(names)
+}
+
+func uniqueStrings(list []string) []string {
+	seen := make(map[string]bool, len(list))
+	out := list[:0:0]
+	for _, item := range list {
+		if !seen[item] {
+			seen[item] = true
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+// tagsByName indexes the existing tags by their trimmed name; of two tags with
+// the same name (" mysql" and "mysql") the one without padding wins.
+func (h *PostHandler) tagsByName() map[string]model.Tag {
+	allTags, _ := h.TagRepo.GetTags()
+	byName := make(map[string]model.Tag, len(allTags))
+	for _, tag := range allTags {
+		name := strings.TrimSpace(tag.Name)
+		if current, ok := byName[name]; !ok || current.Name != name {
+			byName[name] = tag
+		}
+	}
+	return byName
+}
+
+// existingTagIds resolves names to ids without creating anything.
+func (h *PostHandler) existingTagIds(names []string) (tagIds []int) {
+	byName := h.tagsByName()
+	for _, name := range names {
+		if tag, ok := byName[name]; ok {
+			tagIds = append(tagIds, tag.Id)
+		}
+	}
+	return
+}
+
+// getTagIds 根据标签名称获取标签 ID 列表，不存在的标签会被创建
+func (h *PostHandler) getTagIds(tags string) (tagIds []int) {
+	byName := h.tagsByName()
+	for _, name := range splitTags(tags) {
+		if tag, ok := byName[name]; ok {
+			tagIds = append(tagIds, tag.Id)
+			continue
+		}
+		if newTagId, _ := h.TagRepo.AddTag(model.Tag{Name: name}); newTagId > 0 {
+			tagIds = append(tagIds, newTagId)
 		}
 	}
 	return

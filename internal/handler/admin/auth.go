@@ -1,7 +1,9 @@
 package admin
 
 import (
+	"crypto/subtle"
 	"net/http"
+	"strings"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -53,29 +55,37 @@ func (h *AuthHandler) Signup(ctx *gin.Context) {
 }
 
 func (h *AuthHandler) Signin(ctx *gin.Context) {
-	email := ctx.Request.FormValue("email")
+	email := strings.TrimSpace(ctx.Request.FormValue("email"))
 	password := ctx.Request.FormValue("password")
 
-	if email == "" || password == "" {
-		ctx.Writer.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	user, err := h.UserRepo.GetUserByEmail(email)
-	if err != nil {
-		data := make(map[string]interface{})
-		data["msg"] = "用户不存在，请重试"
-		view.AdminRender(data, ctx.Writer, "401", h.config.App)
-		return
-	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
-		data := make(map[string]interface{})
-		data["msg"] = "密码不正确，请重试"
-		view.AdminRender(data, ctx.Writer, "401", h.config.App)
+	if email == "" || password == "" || !h.checkCredentials(email, password) {
+		// one message for every failure: no hint about which accounts exist
+		data := map[string]interface{}{"msg": "邮箱或密码不正确，请重试"}
+		view.AdminRenderStatus(http.StatusUnauthorized, data, ctx.Writer, "401", h.config.App)
 		return
 	}
 	session := sessions.Default(ctx)
 	session.Set("email", email)
 	session.Save()
 	http.Redirect(ctx.Writer, ctx.Request, "/admin", http.StatusFound)
+}
+
+// dummyHash keeps the response time of "no such account" in line with "wrong
+// password": bcrypt runs either way.
+var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("goblog-timing-equaliser"), bcrypt.DefaultCost)
+
+// checkCredentials verifies a login. The account from the config file wins;
+// users.json is only consulted when no such account is configured.
+func (h *AuthHandler) checkCredentials(email, password string) bool {
+	hash := dummyHash
+	known := false
+	if app := h.config.App; app.ConfigAdmin() {
+		if subtle.ConstantTimeCompare([]byte(strings.ToLower(email)), []byte(strings.ToLower(app.AdminEmail))) == 1 {
+			hash, known = []byte(app.AdminPasswordHash), true
+		}
+	} else if user, err := h.UserRepo.GetUserByEmail(email); err == nil {
+		hash, known = []byte(user.Password), true
+	}
+	err := bcrypt.CompareHashAndPassword(hash, []byte(password))
+	return known && err == nil
 }

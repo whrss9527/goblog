@@ -2,8 +2,9 @@
 
    - sets up editor.md for the screen at hand: split preview on wide screens, a
      single pane with a compact toolbar on phones, always as tall as the window
-   - keeps a local draft in localStorage while typing, so a closed tab, an
+   - keeps a local backup in localStorage while typing, so a closed tab, an
      expired login or a failed save never costs the text; offers to restore it
+     (not to be confused with drafts, which are unpublished posts on the server)
    - warns before leaving with unsaved changes, saves with Ctrl/Cmd+S
    - live word count, description length, slug check, tag suggestions */
 (function () {
@@ -14,7 +15,8 @@
 
     var kind = form.getAttribute('data-kind') || 'post';
     var docId = form.getAttribute('data-id') || '';
-    var DRAFT_KEY = 'goblog:draft:' + kind + ':' + (docId || 'new');
+    var serverDraft = form.getAttribute('data-draft') || ''; // an unpublished post kept on the server
+    var DRAFT_KEY = 'goblog:draft:' + kind + ':' + (docId || (serverDraft ? 'draft-' + serverDraft : 'new'));
     var FIELDS = ['title', 'identity', 'page_id', 'category', 'tags', 'description'];
     var statusEl = document.getElementById('editor-status');
     var countEl = document.getElementById('editor-count');
@@ -101,7 +103,7 @@
             return;
         }
         now.savedAt = Date.now();
-        if (storage('set', now)) { setStatus('草稿已存在本机 ' + clock(now.savedAt), 'ok'); }
+        if (storage('set', now)) { setStatus('已在本机备份 ' + clock(now.savedAt), 'ok'); }
     }
 
     function touch() {
@@ -118,7 +120,7 @@
         if (same(draft, original)) { storage('remove'); return; }
         var text = banner.querySelector('[data-role="text"]');
         if (text) {
-            text.textContent = '这台设备上有一份没提交的草稿（' + clock(draft.savedAt || Date.now()) + '，' + countWords(draft.content || '') + ' 字）。';
+            text.textContent = '这台设备上有一份没保存的本机备份（' + clock(draft.savedAt || Date.now()) + '，' + countWords(draft.content || '') + ' 字）。';
         }
         banner.hidden = false;
         banner.querySelector('[data-role="restore"]').addEventListener('click', function () {
@@ -131,7 +133,7 @@
             dirty = true;
             refreshFieldHints();
             updateCount();
-            setStatus('已恢复草稿，记得保存', 'ok');
+            setStatus('已恢复，记得保存', 'ok');
         });
         banner.querySelector('[data-role="discard"]').addEventListener('click', function () {
             storage('remove');
@@ -301,9 +303,27 @@
     document.addEventListener('keydown', function (e) {
         if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 's' || e.key === 'S')) {
             e.preventDefault();
-            if (form.requestSubmit) { form.requestSubmit(); } else { form.querySelector('[type="submit"]').click(); }
+            // an unpublished post is saved as a draft: Ctrl+S must never publish by accident
+            var button = document.getElementById('save-draft') || form.querySelector('[type="submit"]');
+            button.click();
         }
     });
+
+    // back from "save draft": the server has the text now, the local copy has done its job
+    var params = new URLSearchParams(location.search);
+    var savedSlug = params.get('saved');
+    if (savedSlug) {
+        try {
+            Object.keys(localStorage).forEach(function (key) {
+                if (key.indexOf('goblog:draft:') !== 0) { return; }
+                var local = JSON.parse(localStorage.getItem(key) || 'null');
+                if (local && local.submitted && local.identity === savedSlug) { localStorage.removeItem(key); }
+            });
+        } catch (e) { /* storage unavailable */ }
+        setStatus('草稿已保存到服务器 ' + clock(Date.now()), 'ok');
+        params.delete('saved');
+        if (history.replaceState) { history.replaceState(null, '', location.pathname + '?' + params.toString()); }
+    }
 
     // the settings are open while they still need to be filled in (a new post)
     // or fixed (a rejected save); an existing post opens straight into its text

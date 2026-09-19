@@ -238,6 +238,182 @@ func TestAdminPageSave(t *testing.T) {
 	}
 }
 
+func TestAdminDrafts(t *testing.T) {
+	a := newAdminClient(t)
+	draftFile := func(slug string) string { return filepath.Join(a.dataDir, ".drafts", slug+".md") }
+	form := func(action, draft, title, slug, tags, content string) url.Values {
+		return url.Values{"_csrf": {a.token("/admin/posts/add")}, "id": {""}, "draft": {draft}, "action": {action}, "title": {title},
+			"identity": {slug}, "category": {"1"}, "tags": {tags}, "description": {""}, "content": {content}}
+	}
+
+	// save a draft: stays in the editor, nothing becomes public
+	status, _, location := a.post("/admin/posts/save", form("draft", "", "半成品", "wip", "go, 全新标签", "## 还没写完"))
+	if status != http.StatusFound || location != "/admin/posts/add?draft=wip&saved=wip" {
+		t.Fatalf("save draft = %d -> %q", status, location)
+	}
+	if raw, err := os.ReadFile(draftFile("wip")); err != nil || !strings.Contains(string(raw), "还没写完") || !strings.Contains(string(raw), "status: 0") {
+		t.Fatalf("draft file: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(a.dataDir, "posts", "wip.md")); !os.IsNotExist(err) {
+		t.Errorf("a draft must not be written to posts/")
+	}
+	for _, public := range []string{"/posts/wip", "/", "/archive", "/feed.xml", "/sitemap.xml", "/stats"} {
+		if status, body, _ := a.get(public); (public == "/posts/wip" && status != http.StatusNotFound) || strings.Contains(body, "半成品") || strings.Contains(body, "还没写完") {
+			t.Errorf("draft leaks into %s (status %d)", public, status)
+		}
+	}
+	if _, body, _ := a.get("/api/search?q=" + url.QueryEscape("还没写完")); !strings.Contains(body, `"total":0`) {
+		t.Errorf("draft leaks into the search API: %s", body)
+	}
+	if raw, _ := os.ReadFile(filepath.Join(a.dataDir, "tags.json")); strings.Contains(string(raw), "全新标签") {
+		t.Errorf("a draft must not create tags in the public tags.json")
+	}
+
+	// the list shows it, the editor loads it, the preview renders it
+	if _, body, _ := a.get("/admin/"); !strings.Contains(body, "半成品") || !strings.Contains(body, `href="/admin/posts/add?draft=wip"`) || !strings.Contains(body, `action="/admin/drafts/delete/wip"`) {
+		t.Errorf("draft missing from the admin list")
+	}
+	if status, body, _ := a.get("/admin/posts/add?draft=wip"); status != http.StatusOK || !strings.Contains(body, `name="draft" value="wip"`) ||
+		!strings.Contains(body, `value="go,全新标签"`) || !strings.Contains(body, "还没写完") || !strings.Contains(body, `id="save-draft"`) {
+		t.Errorf("editor for the draft = %d", status)
+	}
+	if status, body, _ := a.get("/admin/posts/preview?draft=wip"); status != http.StatusOK || !strings.Contains(body, "草稿预览") ||
+		!strings.Contains(body, `<h2 id="还没写完">`) || !strings.Contains(body, `content="noindex"`) || strings.Contains(body, `id="like-btn"`) || strings.Contains(body, "giscus") {
+		t.Errorf("preview = %d, want the rendered draft without likes and comments", status)
+	}
+
+	// a draft cannot sit on the address of a published post; renaming works
+	if status, body, _ := a.post("/admin/posts/save", form("draft", "wip", "半成品", "older", "", "x")); status != http.StatusUnprocessableEntity || !strings.Contains(body, "占用") {
+		t.Errorf("draft on a published address = %d", status)
+	}
+	status, _, location = a.post("/admin/posts/save", form("draft", "wip", "半成品", "wip-2", "go", "## 第二版"))
+	if status != http.StatusFound || !strings.HasPrefix(location, "/admin/posts/add?draft=wip-2") {
+		t.Fatalf("rename draft = %d -> %q", status, location)
+	}
+	if _, err := os.Stat(draftFile("wip")); !os.IsNotExist(err) {
+		t.Errorf("the old draft file must be gone after a rename")
+	}
+
+	// publishing turns the draft into a post and removes the draft
+	status, _, location = a.post("/admin/posts/save", form("publish", "wip-2", "成品", "finished", "go,全新标签", "## 写完了"))
+	if status != http.StatusFound || location != "/admin?saved=finished" {
+		t.Fatalf("publish = %d -> %q", status, location)
+	}
+	if _, err := os.Stat(draftFile("wip-2")); !os.IsNotExist(err) {
+		t.Errorf("publishing must remove the draft")
+	}
+	if status, body, _ := a.get("/posts/finished"); status != http.StatusOK || !strings.Contains(body, "写完了") || !strings.Contains(body, "全新标签") {
+		t.Errorf("published post = %d", status)
+	}
+	if raw, _ := os.ReadFile(filepath.Join(a.dataDir, "tags.json")); !strings.Contains(string(raw), `"name": "全新标签"`) || strings.Contains(string(raw), `" 全新标签"`) {
+		t.Errorf("publishing creates the new tag, trimmed: %s", raw)
+	}
+
+	// an already published post cannot be pushed back into a draft through the form
+	values := form("draft", "", "成品", "finished", "go", "改了")
+	values.Set("id", "finished")
+	if status, _, location := a.post("/admin/posts/save", values); status != http.StatusFound || location != "/admin?saved=finished" {
+		t.Errorf("action=draft on a published post = %d -> %q, want a normal save", status, location)
+	}
+
+	// delete
+	a.post("/admin/posts/save", form("draft", "", "要删的", "to-delete", "", "x"))
+	if status, _, location := a.post("/admin/drafts/delete/to-delete", url.Values{"_csrf": {a.token("/admin/posts/add")}}); status != http.StatusFound || location != "/admin" {
+		t.Errorf("delete draft = %d -> %q", status, location)
+	}
+	if _, err := os.Stat(draftFile("to-delete")); !os.IsNotExist(err) {
+		t.Errorf("draft file must be deleted")
+	}
+}
+
+func TestAdminTagParsing(t *testing.T) {
+	a := newAdminClient(t)
+	status, _, _ := a.post("/admin/posts/save", url.Values{"_csrf": {a.token("/admin/posts/add")}, "id": {""}, "title": {"标签测试"}, "identity": {"tag-test"},
+		"category": {"1"}, "tags": {" go ， mysql,,mysql , "}, "description": {""}, "content": {"x"}})
+	if status != http.StatusFound {
+		t.Fatalf("save = %d", status)
+	}
+	raw, _ := os.ReadFile(filepath.Join(a.dataDir, "tags.json"))
+	tags := string(raw)
+	if strings.Count(tags, `"mysql"`) != 1 || strings.Contains(tags, `" mysql"`) || strings.Contains(tags, `"name": ""`) {
+		t.Errorf("tags must be trimmed, deduplicated and never empty: %s", tags)
+	}
+	post, _ := os.ReadFile(filepath.Join(a.dataDir, "posts", "tag-test.md"))
+	if !strings.Contains(string(post), "tag_ids: [1,") {
+		t.Errorf("the existing tag go (id 1) must be reused: %s", post)
+	}
+
+	// a post without tags gets none, and no nameless tag appears
+	a.post("/admin/posts/save", url.Values{"_csrf": {a.token("/admin/posts/add")}, "id": {""}, "title": {"无标签"}, "identity": {"no-tags"},
+		"category": {"1"}, "tags": {""}, "description": {""}, "content": {"x"}})
+	raw, _ = os.ReadFile(filepath.Join(a.dataDir, "tags.json"))
+	if strings.Contains(string(raw), `"name": ""`) {
+		t.Errorf("an empty tags field must not create a tag: %s", raw)
+	}
+}
+
+func TestAdminLoginFailuresLookAlike(t *testing.T) {
+	a := newAdminClient(t)
+	a.get("/admin/logout")
+
+	var bodies []string
+	for _, creds := range [][2]string{{adminEmail, "wrong password"}, {"nobody@example.com", adminPassword}, {"", ""}} {
+		status, body, _ := a.post("/admin/sign-in", url.Values{"email": {creds[0]}, "password": {creds[1]}})
+		if status != http.StatusUnauthorized || !strings.Contains(body, "邮箱或密码不正确") {
+			t.Errorf("login as %q = %d, want 401 with the generic message", creds[0], status)
+		}
+		bodies = append(bodies, body)
+	}
+	if bodies[0] != bodies[1] {
+		t.Errorf("a wrong password and an unknown account must be indistinguishable")
+	}
+	if status, _, location := a.get("/admin/"); status != http.StatusFound || location != "/admin/login" {
+		t.Errorf("failed logins must not open the admin: %d -> %q", status, location)
+	}
+}
+
+func TestAdminAccountFromConfig(t *testing.T) {
+	const configPassword = "only in the config file"
+	hash, err := bcrypt.GenerateFromPassword([]byte(configPassword), bcrypt.MinCost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var dataDir string
+	handler := newTestServer(t, func(c *config.Config) {
+		dataDir = c.App.DataDir
+		c.App.Host = "http://blog.example.com"
+		c.App.AdminEmail = "Owner@Example.com"
+		c.App.AdminPasswordHash = string(hash)
+		// an account in the (public) content repository must not work any more
+		old, _ := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.MinCost)
+		users := `[{"id":1,"email":"` + adminEmail + `","password":"` + string(old) + `"}]`
+		if err := os.WriteFile(filepath.Join(dataDir, "users.json"), []byte(users), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	})
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	jar, _ := cookiejar.New(nil)
+	a := &adminClient{t: t, base: server.URL, dataDir: dataDir, client: &http.Client{
+		Jar:           jar,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}}
+
+	if status, _, _ := a.post("/admin/sign-in", url.Values{"email": {adminEmail}, "password": {adminPassword}}); status != http.StatusUnauthorized {
+		t.Errorf("users.json account = %d, want 401 once the config defines the admin", status)
+	}
+	if status, _, _ := a.post("/admin/sign-in", url.Values{"email": {"owner@example.com"}, "password": {"wrong"}}); status != http.StatusUnauthorized {
+		t.Errorf("wrong password = %d, want 401", status)
+	}
+	status, _, location := a.post("/admin/sign-in", url.Values{"email": {"owner@example.com"}, "password": {configPassword}})
+	if status != http.StatusFound || location != "/admin" {
+		t.Fatalf("config account = %d -> %q, want a redirect into the admin", status, location)
+	}
+	if status, _, _ := a.get("/admin/"); status != http.StatusOK {
+		t.Errorf("admin after login = %d", status)
+	}
+}
+
 func TestAdminLogout(t *testing.T) {
 	a := newAdminClient(t)
 	if status, _, location := a.get("/admin/logout"); status != http.StatusFound || location != "/admin/login" {

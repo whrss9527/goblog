@@ -81,6 +81,40 @@ body.admin {
     margin-bottom: 16px;
 }
 
+/* ---------- drafts ---------- */
+.admin-drafts {
+    margin-bottom: 16px;
+    border-color: #f0d9a8;
+}
+
+.admin-drafts .card-header {
+    background: #fff8e6;
+    font-weight: 600;
+}
+
+.admin-drafts .card-header small {
+    margin-left: 8px;
+    color: #8a6d3b;
+    font-weight: 400;
+}
+
+.admin-draft {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+}
+
+.admin-draft-text {
+    flex: 1 1 240px;
+    min-width: 0;
+}
+
+.admin-draft .admin-actions {
+    flex-direction: row;
+}
+
 /* ---------- tables ---------- */
 .admin-table {
     width: 100%;

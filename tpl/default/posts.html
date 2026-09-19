@@ -16,6 +16,12 @@
             </div>
         </header>
 
+        {{if .preview}}
+        <aside class="notice notice-outdated" role="note">
+            {{template "icon-clock"}}
+            <span><strong>草稿预览</strong>：只有登录后台的你能看到这个页面，发布之后才会出现在博客上。</span>
+        </aside>
+        {{end}}
         {{if gt .outdated_years 0}}
         <aside class="notice notice-outdated" role="note">
             {{template "icon-clock"}}
@@ -34,6 +40,7 @@
             {{end}}
         </article>
 
+        {{if not .preview}}
         <footer class="article-footer">
             <div class="article-license">
                 <p><span class="license-label">本文链接</span><a id="post-permalink" href="{{.canonical}}">{{.canonical}}</a></p>
@@ -83,6 +90,7 @@
         {{end}}
 
         {{template "comments" .}}
+        {{end}}
     </div>
     <aside class="article-aside" id="article-aside" aria-label="文章目录"></aside>
 </div>

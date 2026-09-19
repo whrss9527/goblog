@@ -22,6 +22,11 @@ app:
   # PWA：可安装到桌面 / 主屏，读过的文章断网也能看（Service Worker）。默认开启；
   # 改成 false 会同时让访客浏览器里已安装的 Service Worker 自动注销并清空缓存
   pwa: true
+  # 后台账号（推荐写在这里）。两项都填了之后只认这里的账号，内容仓库里的 users.json 不再生效 ——
+  # blog-data 如果是公开仓库，users.json 里的密码哈希任何人都能下载。
+  # 哈希用 `./goblog -hash-password` 生成（从标准输入读密码）；YAML 里请保留引号。
+  admin_email: ""
+  admin_password_hash: ""
 
 server:
   http_port: 9091

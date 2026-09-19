@@ -7,6 +7,29 @@
     <a class="btn btn-primary" href="/admin/posts/add">写文章</a>
 </div>
 <div class="alert alert-success admin-note" id="saved-note" role="status" hidden>已保存，文章和订阅源都更新了。</div>
+{{if .drafts}}
+<div class="card admin-drafts">
+    <div class="card-header">草稿 <small>只保存在这台服务器上：不公开，也不会提交到内容仓库</small></div>
+    <ul class="list-group list-group-flush">
+        {{range .drafts}}
+        <li class="list-group-item admin-draft">
+            <div class="admin-draft-text">
+                <a class="admin-title" href="/admin/posts/add?draft={{.Identity}}">{{.Title}}</a>
+                <span class="admin-sub">/posts/{{.Identity}} · {{.WordCount}} 字 · 保存于 {{formatTime .UpdatedAt "2006-01-02 15:04"}}</span>
+            </div>
+            <div class="admin-actions">
+                <a class="btn btn-sm btn-outline-primary" href="/admin/posts/add?draft={{.Identity}}">继续写</a>
+                <a class="btn btn-sm btn-outline-secondary" href="/admin/posts/preview?draft={{.Identity}}" target="_blank" rel="noopener">预览</a>
+                <form method="POST" action="/admin/drafts/delete/{{pathEscape .Identity}}" data-confirm="确定删除草稿「{{.Title}}」？草稿没有备份，删除后无法恢复。">
+                    <input type="hidden" name="_csrf" value="{{$.csrf_token}}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">删除</button>
+                </form>
+            </div>
+        </li>
+        {{end}}
+    </ul>
+</div>
+{{end}}
 <div class="card">
     <div class="card-body">
         <table id="datatablesSimple" class="admin-table" data-per-page="20">

@@ -181,6 +181,13 @@ func (r *FileRepository) parsePost(raw string, slug string) *model.Post {
 	tagIds, _ := json.Marshal(post.TagIds)
 	post.TagIdString = string(tagIds)
 
+	// only drafts carry tag names: their new tags are not created until publication
+	for _, name := range strings.Split(meta["tag_names"], ",") {
+		if name = strings.TrimSpace(name); name != "" {
+			post.TagNames = append(post.TagNames, name)
+		}
+	}
+
 	return post
 }
 

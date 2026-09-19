@@ -41,6 +41,13 @@ type (
 		// reading, instant static assets) on or off. Unset means on; setting it
 		// to false also retires service workers browsers already installed.
 		PWA *bool `mapstructure:"pwa"`
+		// AdminEmail and AdminPasswordHash (bcrypt, see "goblog -hash-password")
+		// define the admin account in the config file. When both are set they
+		// are the only way in and users.json in the content repository is
+		// ignored — that repository is often public, and a password hash has no
+		// business being downloadable.
+		AdminEmail        string `mapstructure:"admin_email"`
+		AdminPasswordHash string `mapstructure:"admin_password_hash"`
 	}
 	ServerConfig struct {
 		HttpPort                uint32        `mapstructure:"http_port"`
@@ -56,6 +63,11 @@ server:
   graceful_shutdown_timeout: 15s
 `)
 )
+
+// ConfigAdmin reports whether the admin account comes from the config file.
+func (c *AppConfig) ConfigAdmin() bool {
+	return c != nil && c.AdminEmail != "" && c.AdminPasswordHash != ""
+}
 
 // PWAEnabled reports whether the site should offer its service worker.
 func (c *AppConfig) PWAEnabled() bool {

@@ -108,7 +108,16 @@ The Gin engine is initialized in `internal/pkg/gin/gin.go` (CORS, error handling
 - A rejected save re-renders the editor (HTTP 422) with everything the author typed plus `error`; never send the
   author to a bare error page. Slug rules live in `internal/handler/admin/validate.go`; `filestore.PostSave` /
   `PageSave` have their own last-line checks (`ErrInvalidSlug`, `ErrSlugTaken`). An unchanged legacy slug always passes.
-- The editor keeps a local draft in `localStorage` (`goblog:draft:<kind>:<id|new>`); a successful save redirects to
+- **Drafts** (`internal/filestore/draft.go`, `repository.DraftRepository`): unpublished posts in `<data_dir>/.drafts`,
+  read from disk on demand, excluded from git through `.git/info/exclude` (`ensureDraftsPrivate` — a draft is not
+  written when that cannot be guaranteed). They keep tag *names* (`tag_names` frontmatter) so no tag is created in the
+  public `tags.json` before publication. `action=draft` in `PostSave` only applies to unpublished posts; publishing
+  deletes the draft. `front.RenderPostPreview` renders a draft with the public template (`.preview`).
+- **Admin account**: `app.admin_email` + `app.admin_password_hash` win over `users.json` (which sits in the — usually
+  public — content repository). Login failures all look the same (one message, bcrypt always runs).
+- `model.Tag` / `Category` / `User` carry JSON names matching the migrated data files; do not remove them, or the
+  next save rewrites the files with Go field names and drops the timestamps.
+- The editor keeps a local backup in `localStorage` (`goblog:draft:<kind>:<id|new>`); a successful save redirects to
   the list with `?saved=<slug>`, which is what clears the draft.
 
 ### Package Map

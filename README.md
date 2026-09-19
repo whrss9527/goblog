@@ -123,11 +123,40 @@ app:
   description: ""              # 可选：站点一句话简介，用于首页标题 / meta description / 结构化数据
   markdown_render: server      # 可选：server（默认，服务端直出 HTML）/ client（浏览器内 editor.md 渲染）
   pwa: true                    # 可选：PWA / 离线阅读开关，默认开启；false 会让已安装的 Service Worker 自动注销
+  admin_email: ""              # 推荐：后台账号写在配置里（见下文「后台账号放在配置文件里」）
+  admin_password_hash: ""      # ./goblog -hash-password 生成
 
 server:
   http_port: 9091
   graceful_shutdown_timeout: 15s
 ```
+
+### 后台账号放在配置文件里（推荐）
+
+内容仓库（`blog-data`）里的 `users.json` 保存着后台账号的 bcrypt 密码哈希。**如果内容仓库是公开的，这个哈希任何人都能下载**，
+弱密码可以被离线暴力破解。建议：
+
+```bash
+./goblog -hash-password        # 输入新密码，得到 $2a$12$... 形式的哈希
+```
+
+把邮箱和哈希写进 `conf/prod.yaml`（该文件不进任何仓库）：
+
+```yaml
+app:
+  admin_email: "you@example.com"
+  admin_password_hash: "$2a$12$..."
+```
+
+两项都配置后只认这个账号，`users.json` 不再生效；随后可以把 `users.json` 从内容仓库删掉。
+旧哈希仍然留在 Git 历史里，所以**一定要换一个新密码**，不要沿用旧的。
+
+### 草稿
+
+写文章时「存草稿」会把未发布的文章保存在服务器的 `<data_dir>/.drafts/`：不公开、不出现在首页 / 归档 / RSS / sitemap / 搜索里，
+也**不会提交到内容仓库**（通过 `.git/info/exclude` 排除，仓库内容本身不被改动）。代价是草稿只存在于这台服务器上 ——
+容器部署请把 `data_dir` 放在持久卷里。草稿可以在后台预览，发布时才会创建新标签并进入仓库。
+另外，编辑器会在浏览器本地自动备份正在输入的内容（关页、登录过期、保存失败都能恢复）。
 
 ## 开发规范
 

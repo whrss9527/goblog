@@ -33,6 +33,15 @@ type PostRepository interface {
 	PostExist(id string) (bool, error)
 }
 
+// DraftRepository stores unpublished posts. Drafts are private to the server
+// they were written on: they are never committed to the content repository.
+type DraftRepository interface {
+	GetDrafts() ([]model.Post, error)
+	GetDraft(slug string) (model.Post, error)
+	SaveDraft(post model.Post, previousSlug string) error
+	DeleteDraft(slug string) error
+}
+
 type CategoryRepository interface {
 	GetCategories() ([]model.Category, error)
 	GetCategory(id int) (model.Category, error)

@@ -327,3 +327,44 @@ func TestPageSaveRejectsUnsafeIds(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, entries)
 }
+
+func TestTagsAndCategoriesKeepTheirFileFormat(t *testing.T) {
+	r := setupTestRepo(t)
+	// the format the database migration produced
+	require.NoError(t, os.WriteFile(filepath.Join(r.dataDir, "tags.json"), []byte(`[
+  {"id": 7, "name": "go", "count": 3, "created_at": "2021-08-15T14:09:06+08:00", "updated_at": "2023-04-04T16:31:19+08:00"}
+]`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(r.dataDir, "categories.json"), []byte(`[
+  {"id": 1, "name": "技术", "created_at": "2021-08-15T14:09:06+08:00", "updated_at": "2021-09-05T19:17:53+08:00"}
+]`), 0o644))
+	require.NoError(t, r.loadTags())
+	require.NoError(t, r.loadCategories())
+	require.Len(t, r.tags, 1)
+	assert.Equal(t, "2021-08-15T14:09:06+08:00", r.tags[0].CreatedAt, "timestamps must be read, not dropped")
+
+	_, err := r.AddTag(model.Tag{Name: "mysql"})
+	require.NoError(t, err)
+	_, err = r.CategorySave(model.Category{Name: "生活", Cur: 5})
+	require.NoError(t, err)
+
+	tags, err := os.ReadFile(filepath.Join(r.dataDir, "tags.json"))
+	require.NoError(t, err)
+	for _, want := range []string{`"id": 7`, `"name": "go"`, `"count": 3`, `"created_at": "2021-08-15T14:09:06+08:00"`, `"updated_at": "2023-04-04T16:31:19+08:00"`, `"name": "mysql"`} {
+		assert.Contains(t, string(tags), want)
+	}
+	assert.NotContains(t, string(tags), `"Id"`)
+	assert.NotContains(t, string(tags), `"CreatedAt"`)
+
+	categories, err := os.ReadFile(filepath.Join(r.dataDir, "categories.json"))
+	require.NoError(t, err)
+	assert.Contains(t, string(categories), `"created_at": "2021-08-15T14:09:06+08:00"`)
+	assert.Contains(t, string(categories), `"name": "生活"`)
+	assert.NotContains(t, string(categories), "Cur", "the form helper field is not data")
+
+	// files an earlier version already rewrote with Go field names still load
+	require.NoError(t, os.WriteFile(filepath.Join(r.dataDir, "tags.json"), []byte(`[{"Id": 9, "Name": "legacy", "Count": 1, "CreatedAt": "", "UpdatedAt": ""}]`), 0o644))
+	require.NoError(t, r.loadTags())
+	require.Len(t, r.tags, 1)
+	assert.Equal(t, 9, r.tags[0].Id)
+	assert.Equal(t, "legacy", r.tags[0].Name)
+}
