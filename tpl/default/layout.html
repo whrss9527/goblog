@@ -114,7 +114,9 @@
     <div class="container">
         <p>
             <span>whrss.com © 2022–{{.year}}</span>
+            {{if .site_days}}<span id="site-days">已运行 {{.site_days}} 天</span>{{end}}
             <span>Powered by <a href="https://github.com/whrss9527" rel="noopener">whrss</a></span>
+            <span><a href="/stats">统计</a></span>
             <span><a href="/feed.xml">RSS</a></span>
             <span><a href="/sitemap.xml">Sitemap</a></span>
             <span class="footer-shortcuts"><a href="#" id="shortcut-help-link">快捷键 <kbd>?</kbd></a></span>

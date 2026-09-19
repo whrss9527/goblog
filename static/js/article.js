@@ -496,6 +496,54 @@
         }
     }
 
+    /* ---------- Like button ---------- */
+    function initLike() {
+        var btn = document.getElementById('like-btn');
+        if (!btn) { return; }
+        var countEl = document.getElementById('like-count');
+        var labelEl = btn.querySelector('.like-label');
+        var identity = btn.getAttribute('data-identity');
+        var busy = false;
+
+        function setLiked(count) {
+            btn.classList.add('is-liked');
+            btn.setAttribute('aria-pressed', 'true');
+            if (labelEl) { labelEl.textContent = '已赞'; }
+            if (countEl && typeof count === 'number') { countEl.textContent = count; }
+        }
+
+        btn.addEventListener('click', function () {
+            if (busy) { return; }
+            if (btn.classList.contains('is-liked')) {
+                G.toast('已经赞过啦，谢谢你 ❤');
+                return;
+            }
+            busy = true;
+            var before = parseInt(countEl ? countEl.textContent : '0', 10) || 0;
+            setLiked(before + 1); // optimistic
+            if (G.burst) { G.burst(btn, ['❤', '💚', '✨', '👍']); }
+
+            fetch('/api/posts/' + encodeURIComponent(identity) + '/like', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {'X-Requested-With': 'goblog', Accept: 'application/json'}
+            }).then(function (res) {
+                if (res.status === 429) { throw new Error('rate'); }
+                if (!res.ok) { throw new Error('http'); }
+                return res.json();
+            }).then(function (data) {
+                setLiked(data.likes);
+            }).catch(function (err) {
+                // roll back the optimistic update
+                btn.classList.remove('is-liked');
+                btn.setAttribute('aria-pressed', 'false');
+                if (labelEl) { labelEl.textContent = '点赞'; }
+                if (countEl) { countEl.textContent = before; }
+                G.toast(err && err.message === 'rate' ? '手速太快了，歇一会儿再点吧' : '点赞没有成功，稍后再试试');
+            }).then(function () { busy = false; });
+        });
+    }
+
     /* ---------- Remember where the reader stopped ---------- */
     var POS_KEY = 'readpos';
     var POS_MAX_AGE = 30 * 24 * 3600 * 1000;
@@ -557,6 +605,7 @@
         markExternalLinks();
         initLightbox();
         initShare();
+        initLike();
 
         var viewer = document.getElementById('post-viewer') || document.getElementById('page-viewer');
         if (viewer) {

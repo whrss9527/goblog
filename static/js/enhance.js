@@ -403,6 +403,7 @@
         ['g t', '标签'],
         ['g r', '阅读清单'],
         ['g m', '关于我'],
+        ['g s', '博客数据统计'],
         ['r', '随便看看（随机文章）'],
         ['t', '切换明暗主题'],
         ['?', '显示 / 关闭这个帮助']
@@ -434,7 +435,7 @@
 
     function initShortcuts() {
         var pendingG = 0;
-        var GOTO = {h: '/', a: '/archive', t: '/tags', r: '/reading', m: '/pages/about'};
+        var GOTO = {h: '/', a: '/archive', t: '/tags', r: '/reading', m: '/pages/about', s: '/stats'};
 
         function moveSelection(delta) {
             var items = document.querySelectorAll('.post-item');
@@ -519,6 +520,87 @@
         }
     }
 
+    /* ---------- Little delights ---------- */
+    var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Throw a handful of emoji out of `origin` (an element, or null for the top of the page).
+    function burst(origin, pieces, count) {
+        if (reduceMotion) { return; }
+        pieces = pieces || ['🎉', '✨', '🎊', '⭐'];
+        count = count || 14;
+        var rect = origin ? origin.getBoundingClientRect() : {left: window.innerWidth / 2, top: 80, width: 0, height: 0};
+        var cx = rect.left + rect.width / 2;
+        var cy = rect.top + rect.height / 2;
+        for (var i = 0; i < count; i++) {
+            var el = document.createElement('span');
+            el.className = 'burst-piece';
+            el.textContent = pieces[i % pieces.length];
+            var angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
+            var dist = 60 + Math.random() * 90;
+            el.style.left = cx + 'px';
+            el.style.top = cy + 'px';
+            el.style.setProperty('--dx', Math.round(Math.cos(angle) * dist) + 'px');
+            el.style.setProperty('--dy', Math.round(Math.sin(angle) * dist - 40) + 'px');
+            el.style.setProperty('--rot', Math.round(Math.random() * 360 - 180) + 'deg');
+            el.style.fontSize = (14 + Math.random() * 12) + 'px';
+            document.body.appendChild(el);
+            (function (node) { setTimeout(function () { node.remove(); }, 1300); })(el);
+        }
+    }
+
+    function confettiRain() {
+        if (reduceMotion) { return; }
+        var pieces = ['🎉', '✨', '🎊', '🤖', '🚀', '💚', '⭐'];
+        for (var i = 0; i < 46; i++) {
+            var el = document.createElement('span');
+            el.className = 'rain-piece';
+            el.textContent = pieces[i % pieces.length];
+            el.style.left = Math.round(Math.random() * 100) + 'vw';
+            el.style.fontSize = (16 + Math.random() * 18) + 'px';
+            el.style.animationDelay = (Math.random() * 0.9) + 's';
+            el.style.animationDuration = (2.2 + Math.random() * 1.6) + 's';
+            document.body.appendChild(el);
+            (function (node) { setTimeout(function () { node.remove(); }, 4800); })(el);
+        }
+    }
+
+    function initEasterEggs() {
+        // ↑ ↑ ↓ ↓ ← → ← → B A
+        var konami = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+        var pos = 0;
+        document.addEventListener('keydown', function (e) {
+            var key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+            pos = key === konami[pos] ? pos + 1 : (key === konami[0] ? 1 : 0);
+            if (pos === konami.length) {
+                pos = 0;
+                confettiRain();
+                toast('🎮 上上下下左右左右 BA —— 三十条命已到账', {duration: 4200});
+            }
+        });
+
+        // Touch equivalent: tap the "running for N days" text five times.
+        var days = document.getElementById('site-days');
+        if (days) {
+            var taps = 0;
+            var timer = null;
+            days.addEventListener('click', function () {
+                taps++;
+                clearTimeout(timer);
+                timer = setTimeout(function () { taps = 0; }, 1500);
+                if (taps >= 5) {
+                    taps = 0;
+                    confettiRain();
+                    toast('🎉 你发现了一个彩蛋，谢谢你读到这里');
+                }
+            });
+        }
+
+        if (window.console && console.log) {
+            console.log('%c了迹奇有没%c\n嘿，同行你好 👋 这个博客由 goblog 驱动（Go + Gin + Git 文件存储）。\n源码: https://github.com/whrss9527/goblog\n按 ? 查看键盘快捷键；试试经典的 Konami 秘籍。',
+                'font-size:22px;font-weight:700;color:#209460;', 'font-size:12px;color:inherit;line-height:1.8;');
+        }
+    }
+
     // Shared with article.js and page-level scripts.
     window.goblog = {
         icons: ICONS,
@@ -531,7 +613,8 @@
         fabStack: fabStack,
         readingRatio: readingRatio,
         toggleTheme: toggleTheme,
-        openSearch: openSearch
+        openSearch: openSearch,
+        burst: burst
     };
 
     function init() {
@@ -544,6 +627,7 @@
         initSearch();
         initShortcuts();
         highlightKeyword();
+        initEasterEggs();
     }
 
     if (document.readyState === 'loading') {

@@ -25,6 +25,7 @@ type PostRepository interface {
 	GetPost(id string) (model.Post, error)
 	GetPostByIdentity(identity string) (model.Post, error)
 	IncrView(id string) error
+	IncrLike(id string) (int, error)
 	PostDelete(post model.Post) (string, error)
 	PostSave(post model.Post) (string, error)
 	GetPostCountByTagId(id string) (int, error)

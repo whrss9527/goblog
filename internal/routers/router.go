@@ -15,6 +15,7 @@ import (
 	"goblog/internal/filestore"
 	"goblog/internal/handler/admin"
 	"goblog/internal/handler/front"
+	"goblog/internal/pkg/view"
 	"goblog/internal/routers/middleware"
 )
 
@@ -62,6 +63,11 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 	postHandler := admin.NewPostHandler(repo, repo, repo, feedHandler, sitemapHandler, server.config)
 	frontPostHandler := front.NewPostHandler(repo, repo, repo, server.config)
 	searchHandler := front.NewSearchHandler(repo, repo, repo)
+	statsHandler := front.NewStatsHandler(repo, repo, repo, repo, server.config)
+	if archive, err := repo.GetPostsArchive(); err == nil && len(archive) > 0 {
+		// footer "running for N days" counts from the very first post
+		view.SetSiteSince(archive[len(archive)-1].CreatedAt)
+	}
 	authHandler := admin.NewAuthHandler(repo, server.config)
 	categoryHandler := admin.NewCategoryHandler(repo, server.config)
 	archiveHandler := front.NewArchiveHandler(repo, server.config)
@@ -75,6 +81,7 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 
 	loginLimiter := middleware.NewRateLimiter(5, 15*time.Minute)
 	searchLimiter := middleware.NewRateLimiter(90, time.Minute)
+	likeLimiter := middleware.NewRateLimiter(20, time.Minute)
 
 	router.StaticFS("/static/", http.Dir("static"))
 	// Book covers live in the content repo (data_dir/covers) and are referenced
@@ -116,10 +123,12 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 		client.GET("/posts/:identity", frontPostHandler.PostInfo)
 		client.GET("/random", frontPostHandler.Random)
 		client.GET("/api/search", searchLimiter.Limit(), searchHandler.Search)
+		client.POST("/api/posts/:identity/like", likeLimiter.Limit(), frontPostHandler.Like)
 		client.GET("/reading", frontBookHandler.ReadingList)
 		client.GET("/pages/:id", frontPageHandler.Page)
 		client.GET("/tags", frontTagHandler.Tag)
 		client.GET("/archive", archiveHandler.Archive)
+		client.GET("/stats", statsHandler.Stats)
 		client.GET("/feed.xml", feedHandler.GetFeedXml)
 		client.GET("/feed", feedHandler.GetFeedXml)
 		client.GET("/sitemap.xml", sitemapHandler.GetSitemap)

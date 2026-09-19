@@ -36,6 +36,10 @@
                 <p><span class="license-label">版权声明</span>本文采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-Hans" target="_blank" rel="noopener license">CC BY-NC-SA 4.0</a> 许可协议，转载请注明出处。</p>
             </div>
             <div class="article-actions">
+                <button type="button" class="btn btn-sm like-btn{{if .liked}} is-liked{{end}}" id="like-btn" data-identity="{{.post.Identity}}"
+                        aria-pressed="{{if .liked}}true{{else}}false{{end}}" aria-label="给这篇文章点赞">
+                    {{template "icon-heart"}}<span class="like-label">{{if .liked}}已赞{{else}}点赞{{end}}</span><span class="like-count" id="like-count">{{.post.Likes}}</span>
+                </button>
                 <button type="button" class="btn btn-sm" id="share-btn" data-title="{{.post.Title}}">{{template "icon-share"}}分享</button>
                 <button type="button" class="btn btn-sm" id="copy-link-btn">{{template "icon-link"}}复制链接</button>
             </div>

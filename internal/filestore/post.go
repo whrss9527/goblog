@@ -197,6 +197,23 @@ func (r *FileRepository) IncrView(id string) error {
 	return nil
 }
 
+// IncrLike adds one like to a published post and returns the new total.
+func (r *FileRepository) IncrLike(id string) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	p, ok := r.postById[id]
+	if !ok || p.Status != 1 {
+		return 0, fmt.Errorf("post not found: %s", id)
+	}
+	if r.likes == nil {
+		r.likes = make(map[string]int)
+	}
+	r.likes[id]++
+	p.Likes = r.likes[id]
+	return p.Likes, nil
+}
+
 func (r *FileRepository) PostSave(post model.Post) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -230,6 +247,17 @@ func (r *FileRepository) PostSave(post model.Post) (string, error) {
 			delete(r.postBySlug, oldSlug)
 			r.postById[post.Identity] = existing
 			r.postBySlug[post.Identity] = existing
+			// counters are keyed by slug: carry them over instead of resetting to zero
+			if v, ok := r.views[oldSlug]; ok {
+				r.views[post.Identity] += v
+				delete(r.views, oldSlug)
+				existing.Views = r.views[post.Identity]
+			}
+			if v, ok := r.likes[oldSlug]; ok {
+				r.likes[post.Identity] += v
+				delete(r.likes, oldSlug)
+				existing.Likes = r.likes[post.Identity]
+			}
 			os.Remove(filepath.Join(r.dataDir, "posts", oldSlug+".md"))
 		}
 

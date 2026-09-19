@@ -20,7 +20,7 @@
         {{range .posts}}
         <article class="post-item">
             <h2 class="post-title">
-                {{if .IsTop}}<span class="badge-top">{{template "icon-pin"}}置顶</span>{{end}}<a href="/posts/{{.Identity}}">{{.Title}}</a>
+                {{if .IsTop}}<span class="badge-top">{{template "icon-pin"}}置顶</span>{{end}}<a href="/posts/{{.Identity}}">{{.Title}}</a>{{if ge .Views 10000}}<span class="badge-hot" title="阅读过万">🔥</span>{{end}}
             </h2>
             {{with excerpt .Description 160}}<p class="post-desc">{{.}}</p>{{end}}
             <div class="post-meta">
@@ -62,11 +62,22 @@
 
 {{with .sidebar}}
 <aside class="home-aside" aria-label="发现更多">
-    <section class="widget widget-stats" aria-label="站点统计">
+    <a class="widget widget-stats" href="/stats" aria-label="站点统计，点击查看更多数据">
         <div class="stat"><strong>{{.PostCount}}</strong><span>文章</span></div>
         <div class="stat"><strong>{{humanCount .WordCount}}</strong><span>字</span></div>
         <div class="stat"><strong>{{humanCount .ViewCount}}</strong><span>阅读</span></div>
+    </a>
+
+    {{with $.on_this_day}}
+    <section class="widget widget-otd">
+        <h2 class="widget-title">🕰 {{if .Exact}}那年今日{{else}}那年这几天{{end}}</h2>
+        <ul class="otd-list">
+            {{range .Posts}}
+            <li><time datetime="{{.CreatedAt.Format "2006-01-02"}}">{{.CreatedAt.Format "2006"}}</time><a href="/posts/{{.Identity}}">{{.Title}}</a></li>
+            {{end}}
+        </ul>
     </section>
+    {{end}}
 
     {{if .HotPosts}}
     <section class="widget">

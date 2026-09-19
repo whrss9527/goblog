@@ -133,6 +133,65 @@ func recentDate() time.Time {
 	return time.Now().AddDate(0, -1, 0)
 }
 
+func TestLikeEndpoint(t *testing.T) {
+	h := newTestServer(t)
+
+	post := func(target string, headers map[string]string, cookies []*http.Cookie) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, target, nil)
+		for k, v := range headers {
+			req.Header.Set(k, v)
+		}
+		for _, c := range cookies {
+			req.AddCookie(c)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+	same := map[string]string{"X-Requested-With": "goblog", "Sec-Fetch-Site": "same-origin"}
+
+	if rec := post("/api/posts/hello/like", nil, nil); rec.Code != http.StatusForbidden {
+		t.Fatalf("missing custom header must be rejected, got %d", rec.Code)
+	}
+	if rec := post("/api/posts/hello/like", map[string]string{"X-Requested-With": "goblog", "Sec-Fetch-Site": "cross-site"}, nil); rec.Code != http.StatusForbidden {
+		t.Fatalf("cross-site request must be rejected, got %d", rec.Code)
+	}
+	if rec := post("/api/posts/draft/like", same, nil); rec.Code != http.StatusNotFound {
+		t.Fatalf("hidden posts cannot be liked, got %d", rec.Code)
+	}
+
+	first := post("/api/posts/hello/like", same, nil)
+	if first.Code != http.StatusOK || !strings.Contains(first.Body.String(), `"likes":1`) {
+		t.Fatalf("first like: %d %s", first.Code, first.Body.String())
+	}
+	cookies := first.Result().Cookies()
+	if len(cookies) == 0 || !cookies[0].HttpOnly {
+		t.Fatalf("like must set an HttpOnly cookie, got %+v", cookies)
+	}
+
+	again := post("/api/posts/hello/like", same, cookies)
+	if again.Code != http.StatusOK || !strings.Contains(again.Body.String(), `"likes":1`) || !strings.Contains(again.Body.String(), `"already":true`) {
+		t.Fatalf("liking twice from the same browser must be idempotent: %d %s", again.Code, again.Body.String())
+	}
+
+	other := post("/api/posts/hello/like", same, nil)
+	if !strings.Contains(other.Body.String(), `"likes":2`) {
+		t.Fatalf("another browser adds a like: %s", other.Body.String())
+	}
+
+	// the post page reflects the counter and the pressed state
+	req := httptest.NewRequest(http.MethodGet, "/posts/hello", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	body := rec.Body.String()
+	if !strings.Contains(body, `id="like-count">2<`) || !strings.Contains(body, `aria-pressed="true"`) {
+		t.Errorf("post page must show likes=2 and the liked state")
+	}
+}
+
 func TestRandomRedirect(t *testing.T) {
 	h := newTestServer(t)
 
@@ -223,6 +282,15 @@ func TestFrontPages(t *testing.T) {
 			name: "search API with an empty query returns hot posts", target: "/api/search?q=", wantStatus: http.StatusOK,
 			wantContain: []string{`"hot":[`, `"url":"/posts/hello"`},
 			wantAbsent:  []string{"Draft"},
+		},
+		{
+			name: "stats page", target: "/stats", wantStatus: http.StatusOK,
+			wantContain: []string{"博客数据", "最受欢迎的文章", "每年写了多少", `id="time-progress"`, "2021", `<script id="heatmap-data" type="application/json">[`},
+			wantAbsent:  []string{"Draft", "<no value>"},
+		},
+		{
+			name: "footer shows the site age", target: "/archive", wantStatus: http.StatusOK,
+			wantContain: []string{`id="site-days">已运行 `},
 		},
 		{
 			name: "home sidebar shows stats and hot posts", target: "/", wantStatus: http.StatusOK,

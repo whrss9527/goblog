@@ -140,6 +140,7 @@ func (h *PostHandler) Index(ctx *gin.Context) {
 	data := make(map[string]any)
 	if all, _, err := h.PostRepo.GetPosts(repository.PostParams{Page: 1}); err == nil {
 		data["sidebar"] = buildSidebar(all, tagMap)
+		data["on_this_day"] = onThisDay(all, time.Now(), shanghai)
 	}
 	data["nav"] = "home"
 	data["filter_kind"] = filterKind
@@ -213,6 +214,7 @@ func (h *PostHandler) PostInfo(ctx *gin.Context) {
 		data["related"] = relatedPosts(all, post, 4)
 	}
 	data["outdated_years"] = outdatedYears(post, category.Name, time.Now())
+	data["liked"] = hasLiked(ctx, post.Identity)
 	data["post"] = post
 	data["tags"] = tags
 	data["nav"] = "post"

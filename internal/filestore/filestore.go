@@ -28,6 +28,7 @@ type FileRepository struct {
 	users      []model.User
 	books      []model.Book
 	views      map[string]int
+	likes      map[string]int
 
 	nextCategoryId int
 	nextTagId      int
@@ -44,6 +45,7 @@ func NewFileRepository(dataDir, gitRepo, gitToken string) (*FileRepository, erro
 		postById:       make(map[string]*model.Post),
 		postBySlug:     make(map[string]*model.Post),
 		views:          make(map[string]int),
+		likes:          make(map[string]int),
 		nextCategoryId: 1,
 		nextTagId:      1,
 		nextBookId:     1,
@@ -157,6 +159,9 @@ func (r *FileRepository) loadAll() error {
 	}
 	if err := r.loadViews(); err != nil {
 		return fmt.Errorf("load views: %w", err)
+	}
+	if err := r.loadLikes(); err != nil {
+		return fmt.Errorf("load likes: %w", err)
 	}
 	if err := r.loadPosts(); err != nil {
 		return fmt.Errorf("load posts: %w", err)
@@ -276,6 +281,18 @@ func (r *FileRepository) loadViews() error {
 	return json.Unmarshal(data, &r.views)
 }
 
+func (r *FileRepository) loadLikes() error {
+	r.likes = make(map[string]int)
+	data, err := os.ReadFile(filepath.Join(r.dataDir, "likes.json"))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, &r.likes)
+}
+
 func (r *FileRepository) loadPosts() error {
 	r.posts = nil
 	r.postById = make(map[string]*model.Post)
@@ -302,6 +319,7 @@ func (r *FileRepository) loadPosts() error {
 		if v, ok := r.views[post.Id]; ok {
 			post.Views = v
 		}
+		post.Likes = r.likes[post.Id]
 		r.posts = append(r.posts, post)
 		r.postById[post.Id] = post
 		r.postBySlug[post.Identity] = post
@@ -356,6 +374,21 @@ func (r *FileRepository) flushViews() error {
 	return r.saveJSON("views.json", viewsCopy)
 }
 
+// flushLikes persists the like counters. Blogs that never received a like do
+// not get an empty likes.json added to their data repository.
+func (r *FileRepository) flushLikes() error {
+	r.mu.RLock()
+	likesCopy := make(map[string]int, len(r.likes))
+	for k, v := range r.likes {
+		likesCopy[k] = v
+	}
+	r.mu.RUnlock()
+	if len(likesCopy) == 0 {
+		return nil
+	}
+	return r.saveJSON("likes.json", likesCopy)
+}
+
 func (r *FileRepository) flushViewsLoop() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
@@ -366,6 +399,9 @@ func (r *FileRepository) flushViewsLoop() {
 		case <-ticker.C:
 			if err := r.flushViews(); err != nil {
 				slog.Error("flush views failed", "err", err)
+			}
+			if err := r.flushLikes(); err != nil {
+				slog.Error("flush likes failed", "err", err)
 			}
 		}
 	}
@@ -384,6 +420,13 @@ func (r *FileRepository) pushViewsLoop() {
 				continue
 			}
 			r.gitCommitAndPushPath("views.json", "chore: update views.json")
+			if err := r.flushLikes(); err != nil {
+				slog.Error("flush likes failed", "err", err)
+				continue
+			}
+			if _, err := os.Stat(filepath.Join(r.dataDir, "likes.json")); err == nil {
+				r.gitCommitAndPushPath("likes.json", "chore: update likes.json")
+			}
 		}
 	}
 }
@@ -398,6 +441,9 @@ func (r *FileRepository) Close() {
 		slog.Error("final flush views failed", "err", err)
 	} else {
 		slog.Info("views flushed on shutdown")
+	}
+	if err := r.flushLikes(); err != nil {
+		slog.Error("final flush likes failed", "err", err)
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"goblog/internal/config"
@@ -77,7 +78,7 @@ func InitTemplates() {
 		frontTemplates = make(map[string]*template.Template)
 		adminTemplates = make(map[string]*template.Template)
 
-		frontPages := []string{"index", "posts", "tags", "pages", "about", "archive", "reading", "404"}
+		frontPages := []string{"index", "posts", "tags", "pages", "about", "archive", "reading", "stats", "404"}
 		for _, page := range frontPages {
 			tplPaths := []string{
 				"tpl/default/layout.html",
@@ -122,6 +123,25 @@ func InitTemplates() {
 	})
 }
 
+// siteSince is the publication time of the oldest post, used for the footer's
+// "running for N days". Stored as UnixNano so it can be read without locking.
+var siteSince atomic.Int64
+
+// SetSiteSince records when the blog started.
+func SetSiteSince(t time.Time) {
+	if !t.IsZero() {
+		siteSince.Store(t.UnixNano())
+	}
+}
+
+func siteDays(now time.Time) int {
+	since := siteSince.Load()
+	if since == 0 {
+		return 0
+	}
+	return int(now.Sub(time.Unix(0, since)).Hours()/24) + 1
+}
+
 // Render renders a front template with HTTP 200.
 func Render(data map[string]any, w http.ResponseWriter, tpl string, appConf *config.AppConfig) {
 	RenderStatus(http.StatusOK, data, w, tpl, appConf)
@@ -135,7 +155,9 @@ func RenderStatus(status int, data map[string]any, w http.ResponseWriter, tpl st
 	data["cdn"] = appConf.Cdn
 	data["host"] = appConf.Host
 	data["version"] = version.Version
-	data["year"] = time.Now().Year()
+	now := time.Now()
+	data["year"] = now.Year()
+	data["site_days"] = siteDays(now)
 	if _, ok := data["title"]; !ok {
 		data["title"] = appConf.Name
 	}

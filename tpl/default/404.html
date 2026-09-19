@@ -3,12 +3,39 @@
     <div class="notfound">
         <p class="notfound-code" aria-hidden="true">404</p>
         <h1>很抱歉，您要找的页面不存在</h1>
-        <p>它可能被移动、改名，或者从未存在过。</p>
+
+        <div class="terminal" aria-hidden="true">
+            <div class="terminal-bar"><i></i><i></i><i></i><span>visitor@whrss: ~</span></div>
+            <pre class="terminal-body"><span class="t-prompt">$</span> <span class="t-cmd" id="t-cmd">curl -I <span id="t-url"></span></span>
+<span class="t-out t-err">HTTP/2 404</span>
+<span class="t-out">x-reason: 它可能被移动、改名，或者从未存在过</span>
+<span class="t-out">x-suggestion: 试试下面这些 ↓</span>
+<span class="t-prompt">$</span> <span class="t-cursor">▋</span></pre>
+        </div>
+
         <div class="notfound-actions">
             <a href="/" class="btn btn-primary">{{template "icon-home"}}返回首页</a>
             <a href="/archive" class="btn">看看归档</a>
             <a href="/random" class="btn">🎲 随便看看</a>
+            <button type="button" class="btn js-only" id="notfound-search">{{template "icon-search"}}搜一搜</button>
         </div>
     </div>
 </div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+(function () {
+    var url = document.getElementById('t-url');
+    if (url) { url.textContent = location.host + location.pathname; }
+    var btn = document.getElementById('notfound-search');
+    if (btn && window.goblog) {
+        btn.addEventListener('click', function () {
+            // pre-fill the palette with the last path segment, it is often a slug
+            var guess = decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || '').replace(/[-_]+/g, ' ');
+            window.goblog.openSearch(guess);
+        });
+    }
+})();
+</script>
 {{end}}

@@ -1,0 +1,170 @@
+{{define "content"}}
+{{with .stats}}
+<div class="container container-narrow stats-page">
+    <header class="page-header">
+        <h1>博客数据</h1>
+        <p class="page-sub">
+            {{if .FirstPost}}<span>第一篇文章写于 {{.FirstPost.CreatedAt.Format "2006-01-02"}}</span><span>已经坚持了 {{$.site_days}} 天</span>{{else}}<span>还没有文章</span>{{end}}
+        </p>
+    </header>
+
+    <section class="stat-cards" aria-label="总览">
+        <div class="stat-card"><strong>{{.PostCount}}</strong><span>篇文章</span></div>
+        <div class="stat-card"><strong>{{humanCount .WordCount}}</strong><span>字</span></div>
+        <div class="stat-card"><strong>{{humanCount .ViewCount}}</strong><span>次阅读</span></div>
+        <div class="stat-card"><strong>{{.TagCount}}</strong><span>个标签</span></div>
+        <div class="stat-card"><strong>{{.AvgWords}}</strong><span>字 / 篇</span></div>
+        <div class="stat-card"><strong>{{.BooksFinished}}</strong><span>本书读完</span></div>
+    </section>
+
+    {{if .FirstPost}}
+    <p class="stats-fact">
+        把所有文章从头读到尾大约需要 <strong>{{printf "%.1f" .ReadingHours}} 小时</strong>。
+        {{if gt .DaysSinceLast 60}}距离上一篇《<a href="/posts/{{.LastPost.Identity}}">{{.LastPost.Title}}</a>》已经过去 <strong>{{.DaysSinceLast}} 天</strong>，是时候写点什么了 🙃{{else}}最近一篇是 {{.DaysSinceLast}} 天前的《<a href="/posts/{{.LastPost.Identity}}">{{.LastPost.Title}}</a>》。{{end}}
+    </p>
+
+    {{with $.on_this_day}}
+    <section class="section-card on-this-day">
+        <h2 class="card-title">🕰 {{if .Exact}}那年今日{{else}}那年这几天{{end}}</h2>
+        <ul class="otd-list">
+            {{range .Posts}}
+            <li><time datetime="{{.CreatedAt.Format "2006-01-02"}}">{{.CreatedAt.Format "2006-01-02"}}</time><a href="/posts/{{.Identity}}">{{.Title}}</a></li>
+            {{end}}
+        </ul>
+    </section>
+    {{end}}
+
+    <section class="section-card">
+        <h2 class="card-title">时间进度 <small>此刻，时间已经走到了这里</small></h2>
+        <div class="time-progress" id="time-progress">
+            <div class="tp-row" data-unit="day"><span class="tp-label">今天</span><div class="tp-bar"><i></i></div><span class="tp-value">–</span></div>
+            <div class="tp-row" data-unit="week"><span class="tp-label">本周</span><div class="tp-bar"><i></i></div><span class="tp-value">–</span></div>
+            <div class="tp-row" data-unit="month"><span class="tp-label">本月</span><div class="tp-bar"><i></i></div><span class="tp-value">–</span></div>
+            <div class="tp-row" data-unit="year"><span class="tp-label">今年</span><div class="tp-bar"><i></i></div><span class="tp-value">–</span></div>
+        </div>
+    </section>
+
+    <section class="section-card">
+        <h2 class="card-title">每年写了多少 <small>柱高为篇数</small></h2>
+        <div class="bar-chart bar-chart-years" role="img" aria-label="每年发文数量柱状图">
+            {{range .Years}}
+            <div class="bar-col" title="{{.Year}} 年：{{.Posts}} 篇，{{.Words}} 字，{{.Views}} 次阅读">
+                <span class="bar-value">{{.Posts}}</span>
+                <span class="bar" style="height:{{.Percent}}%"></span>
+                <span class="bar-label">{{.Year}}</span>
+                <span class="bar-sub">{{humanCount .Words}} 字</span>
+            </div>
+            {{end}}
+        </div>
+    </section>
+
+    <section class="section-card">
+        <h2 class="card-title">什么时候写 <small>最常在{{.BusiestDay}}、{{.PeakHour}} 点前后发文 · 夜猫子指数 {{.NightOwl}}%</small></h2>
+        <div class="chart-grid">
+            <div>
+                <h3 class="chart-caption">按星期</h3>
+                <div class="bar-chart" role="img" aria-label="按星期统计的发文数量">
+                    {{range .Weekdays}}
+                    <div class="bar-col" title="{{.Label}}：{{.Count}} 篇"><span class="bar-value">{{.Count}}</span><span class="bar" style="height:{{.Percent}}%"></span><span class="bar-label">{{.Label}}</span></div>
+                    {{end}}
+                </div>
+            </div>
+            <div>
+                <h3 class="chart-caption">按月份</h3>
+                <div class="bar-chart" role="img" aria-label="按月份统计的发文数量">
+                    {{range .Months}}
+                    <div class="bar-col" title="{{.Label}}：{{.Count}} 篇"><span class="bar-value">{{.Count}}</span><span class="bar" style="height:{{.Percent}}%"></span><span class="bar-label">{{.Label}}</span></div>
+                    {{end}}
+                </div>
+            </div>
+        </div>
+        <h3 class="chart-caption">按小时（0–23 点）</h3>
+        <div class="bar-chart bar-chart-hours" role="img" aria-label="按小时统计的发文数量">
+            {{range $i, $b := .Hours}}
+            <div class="bar-col{{if or (ge $i 22) (lt $i 6)}} is-night{{end}}" title="{{$b.Label}} 点：{{$b.Count}} 篇"><span class="bar" style="height:{{$b.Percent}}%"></span><span class="bar-label">{{$b.Label}}</span></div>
+            {{end}}
+        </div>
+    </section>
+
+    {{if .Categories}}
+    <section class="section-card">
+        <h2 class="card-title">都写了些什么</h2>
+        <div class="stack-bar" role="img" aria-label="分类占比">
+            {{range $i, $c := .Categories}}<span class="stack-seg seg-{{$i}}" style="width:{{printf "%.2f" $c.Percent}}%" title="{{$c.Name}} {{$c.Count}} 篇"></span>{{end}}
+        </div>
+        <ul class="stack-legend">
+            {{range $i, $c := .Categories}}
+            <li><span class="legend-dot seg-{{$i}}"></span><a href="/?category_id={{$c.Id}}">{{$c.Name}}</a><span class="legend-num">{{$c.Count}} 篇 · {{printf "%.0f" $c.Percent}}%</span></li>
+            {{end}}
+        </ul>
+    </section>
+    {{end}}
+
+    <section class="section-card">
+        <h2 class="card-title">最受欢迎的文章</h2>
+        <ol class="rank-list">
+            {{range $i, $r := .TopViewed}}
+            <li>
+                <a href="/posts/{{$r.Post.Identity}}">
+                    <span class="rank-bar" style="width:{{$r.Percent}}%"></span>
+                    <span class="rank-no">{{inc $i}}</span>
+                    <span class="rank-title">{{$r.Post.Title}}</span>
+                    <span class="rank-num">{{humanCount $r.Post.Views}}</span>
+                </a>
+            </li>
+            {{end}}
+        </ol>
+    </section>
+
+    <section class="section-card">
+        <h2 class="card-title">几个之最</h2>
+        <ul class="facts">
+            {{if .Longest}}<li><span class="fact-label">最长的一篇</span><a href="/posts/{{.Longest.Identity}}">{{.Longest.Title}}</a><span class="fact-num">{{.Longest.WordCount}} 字</span></li>{{end}}
+            {{if .Shortest}}<li><span class="fact-label">最短的一篇</span><a href="/posts/{{.Shortest.Identity}}">{{.Shortest.Title}}</a><span class="fact-num">{{.Shortest.WordCount}} 字</span></li>{{end}}
+            {{if .LongestGapTo}}<li><span class="fact-label">最长的停更</span><span>从《<a href="/posts/{{.LongestGapFrom.Identity}}">{{.LongestGapFrom.Title}}</a>》到《<a href="/posts/{{.LongestGapTo.Identity}}">{{.LongestGapTo.Title}}</a>》</span><span class="fact-num">{{.LongestGapDays}} 天</span></li>{{end}}
+            {{if gt .LikeCount 0}}<li><span class="fact-label">收到的赞</span><span>谢谢每一位点过 ❤ 的读者</span><span class="fact-num">{{.LikeCount}} 个</span></li>{{end}}
+        </ul>
+    </section>
+    {{end}}
+
+    {{template "heatmap" $}}
+</div>
+{{end}}
+{{end}}
+
+{{define "scripts"}}
+<script>
+(function () {
+    var box = document.getElementById('time-progress');
+    if (!box) { return; }
+    function ratio(unit, now) {
+        var start, end;
+        if (unit === 'day') {
+            start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        } else if (unit === 'week') {
+            var offset = (now.getDay() + 6) % 7; // Monday first
+            start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - offset);
+            end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7);
+        } else if (unit === 'month') {
+            start = new Date(now.getFullYear(), now.getMonth(), 1);
+            end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        } else {
+            start = new Date(now.getFullYear(), 0, 1);
+            end = new Date(now.getFullYear() + 1, 0, 1);
+        }
+        return (now - start) / (end - start);
+    }
+    function tick() {
+        var now = new Date();
+        Array.prototype.forEach.call(box.querySelectorAll('.tp-row'), function (row) {
+            var r = ratio(row.getAttribute('data-unit'), now);
+            row.querySelector('i').style.width = (r * 100).toFixed(2) + '%';
+            row.querySelector('.tp-value').textContent = (r * 100).toFixed(1) + '%';
+        });
+    }
+    tick();
+    setInterval(tick, 30000);
+})();
+</script>
+{{end}}

@@ -14,6 +14,7 @@ type Post struct {
 	IsTop        int
 	TagIdString  string
 	Views        int
+	Likes        int
 	Description  string
 	WordCount    int
 	Identity     string

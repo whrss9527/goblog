@@ -201,3 +201,54 @@ func TestFlushViews(t *testing.T) {
 	assert.Contains(t, string(content), `"post-1": 10`)
 	assert.Contains(t, string(content), `"post-2": 20`)
 }
+
+func TestIncrLike(t *testing.T) {
+	r := setupTestRepo(t)
+	_, err := r.PostSave(model.Post{Title: "Liked", Identity: "liked", Content: "c", Status: 1})
+	require.NoError(t, err)
+
+	n, err := r.IncrLike("liked")
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+	n, err = r.IncrLike("liked")
+	require.NoError(t, err)
+	assert.Equal(t, 2, n)
+
+	got, err := r.GetPost("liked")
+	require.NoError(t, err)
+	assert.Equal(t, 2, got.Likes)
+
+	_, err = r.IncrLike("missing")
+	assert.Error(t, err)
+
+	// persisted and reloaded
+	require.NoError(t, r.flushLikes())
+	require.NoError(t, r.loadLikes())
+	assert.Equal(t, 2, r.likes["liked"])
+}
+
+func TestFlushLikes_NoFileWithoutLikes(t *testing.T) {
+	r := setupTestRepo(t)
+	require.NoError(t, r.flushLikes())
+	_, err := os.Stat(filepath.Join(r.dataDir, "likes.json"))
+	assert.True(t, os.IsNotExist(err), "likes.json must not be created for a blog without likes")
+}
+
+func TestPostRenameKeepsCounters(t *testing.T) {
+	r := setupTestRepo(t)
+	_, err := r.PostSave(model.Post{Title: "Old", Identity: "old-slug", Content: "c", Status: 1})
+	require.NoError(t, err)
+	require.NoError(t, r.IncrView("old-slug"))
+	_, err = r.IncrLike("old-slug")
+	require.NoError(t, err)
+
+	_, err = r.PostSave(model.Post{Id: "old-slug", Title: "Old", Identity: "new-slug", Content: "c", Status: 1})
+	require.NoError(t, err)
+
+	got, err := r.GetPostByIdentity("new-slug")
+	require.NoError(t, err)
+	assert.Equal(t, 1, got.Views, "views must survive a slug change")
+	assert.Equal(t, 1, got.Likes, "likes must survive a slug change")
+	_, stale := r.views["old-slug"]
+	assert.False(t, stale)
+}

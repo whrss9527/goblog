@@ -45,6 +45,8 @@ func (h *SitemapHandler) GenerateSitemap() {
 		{Loc: host, Changefreq: "daily", Priority: "1.0"},
 		{Loc: host + "/tags", Changefreq: "weekly", Priority: "0.8"},
 		{Loc: host + "/archive", Changefreq: "weekly", Priority: "0.8"},
+		{Loc: host + "/reading", Changefreq: "weekly", Priority: "0.6"},
+		{Loc: host + "/stats", Changefreq: "weekly", Priority: "0.5"},
 		{Loc: host + "/pages/about", Changefreq: "monthly", Priority: "0.6"},
 	}
 
