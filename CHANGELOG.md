@@ -3,6 +3,55 @@
 本项目的所有重要变更都记录在这里。版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)，
 当前版本同时写在 `internal/version/version.go` 中（页面 `<meta name="generator">` 会带上它）。
 
+## [1.6.0] - 2026-09-19 · 性能与 SEO
+
+### 变更
+- **文章改为服务端渲染 Markdown**（`app.markdown_render: server`，默认）。文章 HTML 随响应直出：
+  首屏不再等 jQuery + marked + editor.md 下载执行（每个文章页少 4 个请求、约 330KB / gzip 后约 80KB 的脚本与样式），
+  没有「先空白后出现」的过程，禁用 JavaScript、RSS 阅读器、搜索引擎爬虫看到的都是完整正文。
+  渲染器在 `internal/pkg/md2html`：blackfriday + 一层「按 marked 的读法归一化」的预处理 + goquery 后处理。
+  为了让历史文章和后台 editor.md 预览保持一致，逐条对齐了两者的差异：
+  - 列表：marked 允许 1–3 个空格缩进的续行 / 嵌套、按相对缩进分层，blackfriday 要求 4 空格，否则列表被截断、
+    序号从 1 重新开始 —— 现在统一转换成每层 4 空格的规范形式（含列表中的引用、缩进代码、左侧凸出的子项等写法）；
+  - 围栏代码块：先整体摘出、渲染完再放回。绕开了 blackfriday 在列表里遇到带语言的围栏会吞掉后续列表项、
+    丢失代码中空行的问题，也支持结尾带空格的 ```` ``` ````；围栏的缩进会从代码里去掉；
+  - 段落后的缩进行是续行而不是代码块、` ## 标题` 前面允许空格、`####3.` 无空格标题、`- ###### 列表里的标题`、
+    裸邮箱自动链接、任务列表、行尾 `<br>` 清理；
+  - 排版规则照搬 marked 的 smartypants（弯引号、`--` → —、`...` → …），不再使用 blackfriday 自带的版本
+    （它会把 `->` 变成 `–>`、`1/2` 变成 ½、`(c)` 变成 ©）；不间断空格按 marked 的做法替换为普通空格，
+    代码里的 Tab 保留（显示为 4 列，复制 Go 代码得到真正的 Tab）；
+  - `:fa-xxx:` 图标短码渲染为对应 emoji、`:tw-1f606:` 渲染为原生 emoji（原来依赖的图标字体与 twemoji CDN 不再需要）；
+  - 与浏览器渲染同样的净化策略：移除 `script / style / iframe / form…`、`on*` 属性与 `javascript:` 链接。
+  校验方式：对全部 44 篇文章 + 2 个页面，用无头浏览器分别跑旧的浏览器渲染与新的服务端渲染，比较正文文本、
+  各类元素数量、链接 / 图片列表和代码内容，46/46 一致（唯一记录在案的差异是一篇文章里未闭合的 `**`，
+  两种解析器对笔误的处理不同）；再比较桌面 / 手机两种宽度下每个块的位置与尺寸，剩下的差异都是有意的改进：
+  原生 emoji 取代了加载不出来的表情图片、同一个列表里各项的段落间距统一了、缩进的围栏不再把缩进带进代码。
+- **自动回退**：文章里用到流程图（```` ```flow ````）、时序图（```` ```seq ````）或 TeX 公式时，仍由浏览器端 editor.md 渲染；
+  也可以用 `app.markdown_render: client` 整站切回旧方式。
+- **RSS 使用同一个渲染器**：订阅里的列表序号不再被代码块打断，代码保留缩进（原来会删掉所有 Tab），
+  图标短码显示为 emoji；行内代码的内容现在会正确转义；`<li>` 不再被设为 `display:block`（部分阅读器因此不显示序号）。
+
+### 新增
+- **静态资源缓存头**：带内容指纹的地址（`?v=`，模板函数 `asset` 生成）`Cache-Control: public, max-age=31536000, immutable`；
+  其余 `/static`、`/covers`、`/favicon.ico` 缓存 1 天并允许 `stale-while-revalidate`；404 一律 `no-store`。
+- **SEO**：
+  - 文章页输出 JSON-LD `BlogPosting`（标题、摘要、发布 / 修改时间、作者、分类、标签、字数、配图），首页输出 `Blog` + 站内搜索 `SearchAction`；
+  - `og:image` / Twitter Card：自动取文章里的第一张图片（有图时用 `summary_large_image`），没有则用站点 logo；
+    补充 `article:published_time / modified_time / section / tag`、`og:locale`；
+  - 首页、分类 / 标签筛选页、分页、归档、标签、阅读清单都有各自的 canonical（第 1 页与空筛选不进入地址），搜索结果页不设 canonical 且 `noindex`；
+  - 修复首页标题重复（「站名 | 站名」）；新增可选配置 `app.description`（站点一句话简介），用于首页标题、`meta description` 和结构化数据。
+- 旧的章节链接继续有效：editor.md 时代分享出去的 `#标题原文` 形式的锚点，会按标题文字匹配到对应章节。
+
+### 修复
+- 表格在手机上被压成「一字一行」：为表格恢复 `word-break: keep-all`，宽表格在自己的容器里横向滚动。
+- 行内代码两侧的留白、代码语言角标与长代码行重叠（角标加了底色）。
+
+### 工程
+- `http.Server` 设置 `ReadHeaderTimeout` / `IdleTimeout`。
+- 新增测试：归一化规则表驱动测试、marked 兼容性用例、5000 组随机片段的健壮性测试（不 panic、不泄漏占位符、脚本必被清除）、
+  RSS 渲染、JSON-LD / canonical / 首图提取、缓存头、`server` / `client` 两种渲染模式与自动回退的端到端测试。
+- 新配置项已写入 `conf/*.yaml.example`、`README.md` 与 `CLAUDE.md`。
+
 ## [1.5.0] - 2026-09-19 · 趣味功能
 
 ### 新增

@@ -14,6 +14,11 @@ app:
   git_repo: "https://github.com/whrss9527/blog-data.git"
   # 如果 blog-data 是私有仓库，填 GitHub PAT；公开仓留空
   git_token: ""
+  # 站点一句话简介：用于首页 <title>、<meta name="description"> 与结构化数据；留空则只显示站点名
+  description: ""
+  # 文章 Markdown 在哪里渲染：server（默认，HTML 直出，首屏快、对 SEO 友好、无需 jQuery/editor.md）
+  # 或 client（1.6 之前的方式，浏览器里用 editor.md 渲染）。含流程图/时序图/公式的文章始终回退为 client
+  markdown_render: "server"
 
 server:
   http_port: 9091

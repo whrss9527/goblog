@@ -155,6 +155,12 @@ func (h *PostHandler) Index(ctx *gin.Context) {
 		data["title"] = filterKind + "：" + filterLabel
 		data["noindex"] = keyword != ""
 	}
+	if keyword == "" {
+		data["canonical"] = listCanonical(h.conf.App.Host, categoryId, tagId, page)
+		if filterKind == "" && page <= 1 {
+			data["json_ld"] = siteJSONLD(h.conf.App)
+		}
+	}
 	data["posts"] = posts
 	data["categories"] = categories
 	data["page"] = page
@@ -215,6 +221,9 @@ func (h *PostHandler) PostInfo(ctx *gin.Context) {
 	}
 	data["outdated_years"] = outdatedYears(post, category.Name, time.Now())
 	data["liked"] = hasLiked(ctx, post.Identity)
+	if html, ok := renderOnServer(h.conf.App, post.Content); ok {
+		data["content_html"] = html
+	}
 	data["post"] = post
 	data["tags"] = tags
 	data["nav"] = "post"
@@ -227,6 +236,14 @@ func (h *PostHandler) PostInfo(ctx *gin.Context) {
 	data["identity"] = post.Identity
 	data["pageId"] = "posts-" + post.Id
 	data["canonical"] = h.conf.App.Host + "/posts/" + post.Identity
+	image := view.AbsoluteURL(h.conf.App.Host, firstImage(post.Content))
+	if image != "" {
+		data["og_image"] = image
+		data["og_image_large"] = true
+	}
+	data["published_iso"] = post.CreatedAt.Format(time.RFC3339)
+	data["modified_iso"] = post.UpdatedAt.Format(time.RFC3339)
+	data["json_ld"] = postJSONLD(h.conf.App, post, description, image, tags)
 	view.Render(data, ctx.Writer, "posts", h.conf.App)
 }
 

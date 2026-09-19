@@ -3,7 +3,6 @@ package front
 import (
 	"log/slog"
 	"os"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -64,7 +63,7 @@ func (h *FeedHandler) GenerateFeedXml() {
 			Published: post.CreatedAt,
 			Created:   post.CreatedAt,
 			Updated:   post.UpdatedAt,
-			Content:   md2html.Md2Html([]byte(removeUnwantedChars(post.Content))),
+			Content:   md2html.Md2Html([]byte(post.Content)),
 			Summary:   post.Description,
 		})
 	}
@@ -77,10 +76,4 @@ func (h *FeedHandler) GenerateFeedXml() {
 	if err := os.WriteFile("./feed.xml", []byte(feedXml), 0644); err != nil {
 		slog.Error("feed: write file failed", "err", err)
 	}
-}
-
-func removeUnwantedChars(s string) string {
-	s = strings.ReplaceAll(s, "\t", "")
-	s = strings.ReplaceAll(s, "\r", "\n")
-	return s
 }

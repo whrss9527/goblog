@@ -1,4 +1,4 @@
-{{define "head"}}{{template "markdown-head" .}}{{end}}
+{{define "head"}}{{if not .content_html}}{{template "markdown-head" .}}{{end}}{{end}}
 
 {{define "content"}}
 <div class="container article-layout" id="article-layout">
@@ -24,10 +24,14 @@
         {{end}}
 
         <article class="article-content">
+            {{if .content_html}}
+            <div id="post-viewer" class="markdown-body" data-rendered="server">{{.content_html}}</div>
+            {{else}}
             <div id="post-viewer">
                 <textarea id="append-test" style="display:none;">{{.post.Content}}</textarea>
             </div>
-            <noscript><p class="noscript-tip">本文需要启用 JavaScript 才能渲染正文，你也可以通过 <a href="/feed.xml">RSS</a> 阅读全文。</p></noscript>
+            <noscript><p class="noscript-tip">本文用到了需要 JavaScript 渲染的图表 / 公式，你也可以通过 <a href="/feed.xml">RSS</a> 阅读全文。</p></noscript>
+            {{end}}
         </article>
 
         <footer class="article-footer">
@@ -84,4 +88,4 @@
 </div>
 {{end}}
 
-{{define "scripts"}}{{template "markdown-scripts" .}}{{end}}
+{{define "scripts"}}{{if .content_html}}{{template "article-scripts" .}}{{else}}{{template "markdown-scripts" .}}{{end}}{{end}}

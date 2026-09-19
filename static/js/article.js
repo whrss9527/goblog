@@ -154,7 +154,8 @@
         var headings = viewer.querySelectorAll('h1, h2, h3, h4, h5');
         var seen = {};
         each(headings, function (heading, i) {
-            var base = slugify(heading.textContent) || ('section-' + (i + 1));
+            // server-rendered articles already carry ids (md2html.Slugify uses the same rules)
+            var base = heading.id || slugify(heading.textContent) || ('section-' + (i + 1));
             var id = base;
             var n = 2;
             while (seen[id] || (document.getElementById(id) && document.getElementById(id) !== heading)) {
@@ -179,8 +180,10 @@
         return headings;
     }
 
-    // The body is rendered by JS, so the browser's own jump-to-hash ran too
-    // early. Supports the new ids and editor.md's legacy <a name="..."> anchors.
+    // Jump to the section named in the URL. Besides the heading ids this keeps
+    // links alive that were shared while editor.md rendered the articles: its
+    // anchors were <a name="the heading text"> (still present in client-rendered
+    // posts), so "#the heading text" is matched against the headings themselves.
     function scrollToHash() {
         if (!location.hash || location.hash.length < 2) { return false; }
         var raw = location.hash.slice(1);
@@ -192,6 +195,15 @@
             for (var i = 0; i < legacy.length; i++) {
                 if (legacy[i].getAttribute('name') === name) {
                     target = legacy[i].parentNode;
+                    break;
+                }
+            }
+        }
+        if (!target) {
+            var headings = document.querySelectorAll('.article-content h1, .article-content h2, .article-content h3, .article-content h4, .article-content h5, .article-content h6');
+            for (var j = 0; j < headings.length; j++) {
+                if (headings[j].textContent.trim() === name.trim()) {
+                    target = headings[j];
                     break;
                 }
             }

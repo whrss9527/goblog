@@ -1,5 +1,13 @@
 {{/*
-  Client-side Markdown rendering (editor.md) shared by posts.html and pages.html.
+  Article rendering support shared by posts.html and pages.html.
+
+  Default (app.markdown_render: server): the handler puts ready-made HTML into
+  .content_html and the page only needs "article-scripts" (article.js + prettify
+  for syntax highlighting) — no jQuery, no editor.md, content visible without JS.
+
+  Fallback (app.markdown_render: client, or posts using flow charts / sequence
+  diagrams / TeX): the Markdown source is shipped in a <textarea> and rendered
+  in the browser by editor.md:
 
   - "markdown-head"    : preview stylesheet, only needed on article-like pages.
   - "markdown-scripts" : jQuery + renderer libraries + bootstrap code. jQuery is
@@ -7,6 +15,20 @@
                          only on article-like pages), and it must come first
                          because editormd.js dereferences it at load time.
 */}}
+{{define "article-scripts"}}
+<script src="{{asset "/static/js/article.js"}}"></script>
+<script src="{{.cdn}}/md/lib/prettify.min.js"></script>
+<script>
+(function () {
+    // Highlight first: prettify rewrites <pre> into numbered lines that
+    // enhancePost() relies on (line counts, copy text). A missing prettify
+    // (CDN hiccup) only costs the colours.
+    try { if (window.prettyPrint) { window.prettyPrint(); } } catch (e) { /* keep going */ }
+    if (typeof window.enhancePost === 'function') { window.enhancePost(); }
+})();
+</script>
+{{end}}
+
 {{define "markdown-head"}}
     <link rel="stylesheet" href="{{.cdn}}/md/css/editormd.preview.css"/>
 {{end}}

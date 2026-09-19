@@ -51,6 +51,7 @@ func (h *ArchiveHandler) Archive(ctx *gin.Context) {
 	data["nav"] = "archive"
 	data["title"] = "归档"
 	data["description"] = "文章归档"
+	data["canonical"] = h.config.App.Host + "/archive"
 	data["archives"] = archives
 	data["total"] = len(posts)
 	view.Render(data, ctx.Writer, "archive", h.config.App)

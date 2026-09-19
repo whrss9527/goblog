@@ -68,6 +68,7 @@ func (h *BookHandler) ReadingList(ctx *gin.Context) {
 	data["nav"] = "reading"
 	data["title"] = "阅读清单"
 	data["description"] = "我的阅读清单"
+	data["canonical"] = h.config.App.Host + "/reading"
 	data["book_years"] = bookYears
 	data["total_all"] = totalAll
 	data["finished_all"] = finishedAll

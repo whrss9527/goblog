@@ -80,3 +80,26 @@ func HumanCount(n int) string {
 	s := fmt.Sprintf("%.1f", float64(n)/10000)
 	return strings.TrimSuffix(s, ".0") + "万"
 }
+
+// AbsoluteURL resolves a reference found in content or config against the site
+// address. Social previews and structured data need absolute URLs; "" is
+// returned for anything that cannot be made absolute.
+func AbsoluteURL(host, ref string) string {
+	ref = strings.TrimSpace(ref)
+	switch {
+	case ref == "":
+		return ""
+	case strings.HasPrefix(ref, "https://"), strings.HasPrefix(ref, "http://"):
+		return ref
+	case strings.HasPrefix(ref, "//"):
+		return "https:" + ref
+	case strings.HasPrefix(ref, "/"):
+		return strings.TrimRight(host, "/") + ref
+	}
+	return ""
+}
+
+// SiteLogo is the absolute address of the site logo, the fallback preview image.
+func SiteLogo(host, cdn string) string {
+	return AbsoluteURL(host, strings.TrimRight(cdn, "/")+"/logo.png")
+}

@@ -29,6 +29,14 @@ type (
 		DataDir       string `mapstructure:"data_dir"`
 		GitRepo       string `mapstructure:"git_repo"`
 		GitToken      string `mapstructure:"git_token"`
+		// MarkdownRender selects where articles are rendered: "server" (default,
+		// HTML in the response) or "client" (editor.md in the browser, the
+		// pre-1.6 behaviour). Posts using flow charts, sequence diagrams or TeX
+		// always fall back to the client renderer.
+		MarkdownRender string `mapstructure:"markdown_render"`
+		// Description is the one-line summary of the site, used for the home
+		// page's title, its <meta name="description"> and structured data.
+		Description string `mapstructure:"description"`
 	}
 	ServerConfig struct {
 		HttpPort                uint32        `mapstructure:"http_port"`

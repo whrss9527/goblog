@@ -1545,6 +1545,101 @@ mark {
 }
 
 
+
+/* Article pieces that used to come from editormd.preview.css. Server-rendered
+   articles do not load that stylesheet any more. */
+.article-content .markdown-body table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    border-spacing: 0;
+    /* keep CJK phrases together: a wide table scrolls sideways inside its
+       wrapper instead of squeezing every cell into one-character lines */
+    word-break: keep-all;
+}
+
+.article-content .markdown-body ul { list-style: disc; }
+.article-content .markdown-body ul ul { list-style: circle; }
+.article-content .markdown-body ul ul ul { list-style: square; }
+.article-content .markdown-body ol { list-style: decimal; }
+
+.article-content .markdown-body ul ul,
+.article-content .markdown-body ul ol,
+.article-content .markdown-body ol ol,
+.article-content .markdown-body ol ul {
+    margin-top: 0.3em;
+    margin-bottom: 0.3em;
+}
+
+.article-content .markdown-body li.task-list-item {
+    list-style: none;
+    margin-left: -1.3em;
+}
+
+.task-list-item-checkbox {
+    margin: 0 0.5em 0 0;
+    vertical-align: -1px;
+    accent-color: var(--accent);
+}
+
+/* GitHub-style breathing room inside inline code */
+.article-content .markdown-body code::before,
+.article-content .markdown-body code::after {
+    content: "\00a0";
+    letter-spacing: -0.2em;
+}
+
+.article-content .markdown-body pre code::before,
+.article-content .markdown-body pre code::after {
+    content: normal;
+}
+
+.article-content .markdown-body em {
+    font-style: italic;
+}
+
+.article-content .markdown-body del {
+    color: var(--text-3);
+}
+
+.article-content .markdown-body dl dt {
+    margin-top: 1em;
+    font-weight: 700;
+}
+
+.article-content .markdown-body dl dd {
+    margin: 0.3em 0 0 1.4em;
+    color: var(--text-2);
+}
+
+.article-content .markdown-body sup {
+    font-size: 0.75em;
+    line-height: 0;
+}
+
+.article-content .markdown-body .footnotes {
+    margin-top: 2.5em;
+    color: var(--text-2);
+    font-size: 0.9em;
+}
+
+/* prettify tokens, light theme (dark overrides live in section 13) */
+.pln { color: #24292f; }
+.str, .atv { color: #0a6c2f; }
+.kwd, .tag { color: #a31571; }
+.com { color: #6e7781; font-style: italic; }
+.typ, .atn, .dec, .var { color: #8250df; }
+.lit { color: #0550ae; }
+.pun, .opn, .clo { color: #57606a; }
+.fun { color: #953800; }
+
+ol.linenums {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
 /* editor.md decorations we do not use */
 .article-content .markdown-body .header-link {
     display: none;
@@ -1606,6 +1701,9 @@ mark {
     top: 9px;
     right: 14px;
     z-index: 1;
+    padding: 0 6px;
+    border-radius: 4px;
+    background: var(--code-bg); /* long first lines run underneath the label */
     color: var(--text-3);
     font-family: var(--font-mono);
     font-size: 11.5px;
@@ -3052,7 +3150,7 @@ html:not(.js) .js-only {
     .footer-shortcuts { display: none; } /* no hardware keyboard, no shortcuts */
     .palette-keys { visibility: hidden; }
     .copy-btn { opacity: 0.9; }
-    .code-block-wrapper.has-lang .code-lang { right: 70px; }
+    .code-block-wrapper.has-lang .code-lang { right: 64px; }
     .heading-anchor { opacity: 0.55; }
     .lightbox-prev, .lightbox-next { display: none; } /* swipe instead */
 }

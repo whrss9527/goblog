@@ -83,6 +83,7 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 	searchLimiter := middleware.NewRateLimiter(90, time.Minute)
 	likeLimiter := middleware.NewRateLimiter(20, time.Minute)
 
+	router.Use(middleware.StaticCache("/static/", "/covers/", "/favicon.ico"))
 	router.StaticFS("/static/", http.Dir("static"))
 	// Book covers live in the content repo (data_dir/covers) and are referenced
 	// as /covers/<file> from books.json.

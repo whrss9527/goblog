@@ -163,6 +163,20 @@ func RenderStatus(status int, data map[string]any, w http.ResponseWriter, tpl st
 	}
 	if _, ok := data["description"]; !ok {
 		data["description"] = appConf.Name
+		if appConf.Description != "" {
+			data["description"] = appConf.Description
+		}
+	}
+	// <title>: "page | site", and just the site (plus its tagline) on the home page
+	if title, _ := data["title"].(string); title != "" && title != appConf.Name {
+		data["page_title"] = title + " | " + appConf.Name
+	} else if appConf.Description != "" {
+		data["page_title"] = appConf.Name + " - " + appConf.Description
+	} else {
+		data["page_title"] = appConf.Name
+	}
+	if _, ok := data["og_image"]; !ok {
+		data["og_image"] = SiteLogo(appConf.Host, appConf.Cdn)
 	}
 	// Keys printed unconditionally by the layout must exist, otherwise
 	// html/template prints "<no value>".

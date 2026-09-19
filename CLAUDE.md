@@ -55,6 +55,16 @@ The Gin engine is initialized in `internal/pkg/gin/gin.go` (CORS, error handling
 - **Post ID**: Posts use UUID v4 (dashes removed) as primary key, stored as string. The `identity` field is a separate URL-friendly slug used in `/posts/:identity` routes.
 - **Config**: Viper-based YAML config with defaults embedded in `internal/config/config.go`. Environment configs in `conf/dev.yaml` and `conf/prod.yaml` (both gitignored; use `conf/{dev,prod}.yaml.example` as templates).
 - **Auth**: Admin routes use `gin-contrib/sessions` with signed cookie store via `middleware.AuthWithSession`. Session secret configured in `app.session_secret` (must be a real random value in production).
+- **Markdown rendering**: posts and pages are rendered on the server by `internal/pkg/md2html` (`RenderArticle`: blackfriday +
+  a normalizer that makes it read loosely written lists / fences the way marked — the editor.md preview — does, then goquery
+  post-processing: sanitising, heading ids, task lists, shortcodes, marked-style typography). The feed uses the same HTML.
+  `app.markdown_render: client` or content that needs editor.md-only features (```` ```flow ````, ```` ```seq ````, TeX)
+  falls back to the in-browser editor.md renderer (`markdown-scripts` partial instead of `article-scripts`).
+  When touching the renderer, keep `go test ./internal/pkg/md2html/` green — it pins the marked-compatibility rules.
+- **SEO**: handlers set `canonical`; post pages add `og_image` (first image of the post), `published_iso` / `modified_iso`
+  and `json_ld` (see `internal/handler/front/seo.go`). `view.RenderStatus` derives `page_title` and the default `og_image`.
+- **Static caching**: `middleware.StaticCache` — fingerprinted URLs (`?v=`, from the `asset` template func) are immutable
+  for a year, other static files are cached for a day.
 - **Counters**: view counts (`views.json`) and likes (`likes.json`) live in memory, are flushed to the data dir every 5 minutes and committed/pushed hourly. Both are keyed by post slug and migrate on slug rename.
 - **JSON API**: `GET /api/search?q=` (instant search), `POST /api/posts/:identity/like`; both are rate limited per IP via `middleware.NewRateLimiter`. `GET /random` redirects to a random post.
 - **Cron jobs**: Heatmap data aggregation runs hourly via `robfig/cron`, writing `heatmap.txt`.
@@ -70,7 +80,8 @@ The Gin engine is initialized in `internal/pkg/gin/gin.go` (CORS, error handling
   `{{template "icon-eye"}}`), `markdown.html` (editor.md renderer + giscus), `heatmap.html`.
 - No CSS/JS framework on the public site: `static/css/style.css` (design tokens in `:root` /
   `[data-theme="dark"]`) and `static/js/enhance.js` (vanilla). jQuery is loaded only by
-  `markdown-scripts` because editor.md needs it. Bootstrap is used by the admin only.
+  `markdown-scripts` (the client-side rendering fallback) because editor.md needs it; server-rendered
+  articles load just `article.js` + prettify (`article-scripts`). Bootstrap is used by the admin only.
 - Reference local assets through `{{asset "/static/..."}}` so they get a content fingerprint.
   Files that also live on the external CDN (`app.cdn`) keep using `{{.cdn}}/...`.
 - Every handler should set `data["nav"]` (`home|archive|tags|reading|about`) for the active nav item. Keys the

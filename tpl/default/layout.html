@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8"/>
-    <title>{{.title}} | {{.name}}</title>
+    <title>{{.page_title}}</title>
     <meta name="description" content="{{.description}}"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="generator" content="goblog {{.version}}"/>
@@ -20,7 +20,18 @@
     <meta property="og:site_name" content="{{.name}}"/>
     {{if .canonical}}<meta property="og:url" content="{{.canonical}}"/>{{end}}
     <meta property="og:type" content="{{if .post}}article{{else}}website{{end}}"/>
-    <meta name="twitter:card" content="summary"/>
+    <meta property="og:locale" content="zh_CN"/>
+    {{if .og_image}}<meta property="og:image" content="{{.og_image}}"/>{{end}}
+    <meta name="twitter:card" content="{{if .og_image_large}}summary_large_image{{else}}summary{{end}}"/>
+    {{- if .post}}
+    <meta property="article:published_time" content="{{.published_iso}}"/>
+    <meta property="article:modified_time" content="{{.modified_iso}}"/>
+    {{if .post.CategoryName}}<meta property="article:section" content="{{.post.CategoryName}}"/>{{end}}
+    {{- range .tags}}
+    <meta property="article:tag" content="{{.Name}}"/>
+    {{- end}}
+    {{- end}}
+    {{if .json_ld}}<script type="application/ld+json">{{.json_ld}}</script>{{end}}
     <script>
         /* Apply the theme before first paint (no light flash in dark mode).
            Saved choice wins; otherwise follow the OS preference. */

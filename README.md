@@ -12,6 +12,9 @@
 - **评论**：基于 [giscus](https://giscus.app/) GitHub Discussions 评论组件（滚动到附近才加载）。
 - **热力图**：每小时定时聚合写入 `heatmap.txt`，用于贡献图展示。
 - **优雅退出**：`SIGTERM` 触发，超时时间可配。
+- **服务端渲染 Markdown**：文章 HTML 随响应直出（首屏无白屏、无需 jQuery/editor.md、无 JS 也可读、爬虫可见），
+  渲染结果与后台 editor.md 预览保持一致；含流程图 / 时序图 / 公式的文章自动回退到浏览器渲染。
+- **SEO**：canonical、Open Graph / Twitter Card（自动取文内首图）、JSON-LD（`BlogPosting` / `Blog`）、静态资源长缓存。
 - **多端适配**：前台无框架依赖（CSS 变量 + 原生 JS），手机 / 平板 / 桌面自适应，明暗主题跟随系统，
   文章目录在宽屏为粘性侧栏、窄屏为底部抽屉。版本变更见 [CHANGELOG.md](CHANGELOG.md)。
 
@@ -24,7 +27,7 @@
 | 模板 | `html/template`（启动时缓存）|
 | 配置 | [Viper](https://github.com/spf13/viper) (YAML) |
 | 日志 | `log/slog`（自定义 handler，支持 trace id）|
-| Markdown | [editor.md](https://github.com/pandao/editor.md)（编辑器）+ Go 端渲染 |
+| Markdown | [editor.md](https://github.com/pandao/editor.md)（后台编辑器）+ [blackfriday](https://github.com/russross/blackfriday)（前台服务端渲染，`internal/pkg/md2html`）|
 | 内容存储 | 独立 Git 仓库 + 文件系统 |
 | 进程管理 | systemd（推荐）|
 
@@ -114,6 +117,8 @@ app:
   data_dir: "/var/lib/goblog/data"
   git_repo: "https://github.com/your-username/blog-data.git"
   git_token: ""                # 私有 blog-data 仓库才需要填 PAT (Contents: Read)
+  description: ""              # 可选：站点一句话简介，用于首页标题 / meta description / 结构化数据
+  markdown_render: server      # 可选：server（默认，服务端直出 HTML）/ client（浏览器内 editor.md 渲染）
 
 server:
   http_port: 9091

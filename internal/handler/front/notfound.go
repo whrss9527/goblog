@@ -17,6 +17,8 @@ func RenderNotFound(ctx *gin.Context, appConf *config.AppConfig) {
 		"description": "404 - 页面不存在",
 		"noindex":     true,
 	}
+	// a missing static file must not inherit the long-lived static cache policy
+	ctx.Header("Cache-Control", "no-store")
 	view.RenderStatus(http.StatusNotFound, data, ctx.Writer, "404", appConf)
 }
 

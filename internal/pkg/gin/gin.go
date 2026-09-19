@@ -40,6 +40,10 @@ func RunGin(router *gin.Engine, port uint32, shutdownTimeout time.Duration) {
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: router,
+		// bound how long a client may take to send its request headers and how
+		// long idle keep-alive connections are kept around
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

@@ -70,7 +70,7 @@ secret
 // The process working directory becomes a temp dir that links to the real
 // tpl/ and static/ trees, so files generated at startup (feed.xml,
 // sitemap.xml, heatmap.txt) never touch the repository.
-func newTestServer(t *testing.T) http.Handler {
+func newTestServer(t *testing.T, options ...func(*config.Config)) http.Handler {
 	t.Helper()
 
 	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
@@ -93,6 +93,7 @@ func newTestServer(t *testing.T) http.Handler {
 		"posts/older.md":  olderPost,
 		"posts/draft.md":  hiddenPost,
 		"pages/about.md":  "---\nid: about\ntitle: \"关于我\"\n---\n\n关于页面正文，足够长的一段介绍文字。",
+		"pages/flow.md":   "---\nid: flow\ntitle: \"流程图\"\n---\n\n```flow\nst=>start: 开始\n```\n",
 		"categories.json": `[{"id":1,"name":"技术"}]`,
 		"tags.json":       `[{"id":1,"name":"go","count":1},{"id":2,"name":"unused","count":0}]`,
 		"books.json":      `[{"id":1,"title":"Clean Code","cover":"/covers/c.jpg","status":2,"progress":100,"year":2024}]`,
@@ -114,6 +115,7 @@ func newTestServer(t *testing.T) http.Handler {
 	conf := &config.Config{
 		App: &config.AppConfig{
 			Name:          "测试博客",
+			Description:   "写给测试的博客",
 			Mode:          "test",
 			Host:          "https://blog.example.com",
 			Cdn:           "/static",
@@ -121,6 +123,9 @@ func newTestServer(t *testing.T) http.Handler {
 			DataDir:       dataDir,
 		},
 		Server: &config.ServerConfig{HttpPort: 0},
+	}
+	for _, option := range options {
+		option(conf)
 	}
 	engine := ginpkg.InitGinConfig("test")
 	cleanup := NewServer(conf).InitRouter(engine)
@@ -241,7 +246,48 @@ func TestFrontPages(t *testing.T) {
 		},
 		{
 			name: "post page", target: "/posts/hello", wantStatus: http.StatusOK,
-			wantContain: []string{`<h1 class="article-title">Hello &#34;Gopher&#34;</h1>`, `rel="canonical" href="https://blog.example.com/posts/hello"`, "/static/js/jquery.min.js", "1234 字", `content="第一行摘要第二行摘要"`},
+			wantContain: []string{`<h1 class="article-title">Hello &#34;Gopher&#34;</h1>`, `rel="canonical" href="https://blog.example.com/posts/hello"`, "1234 字", `content="第一行摘要第二行摘要"`},
+		},
+		{
+			name: "post carries social and structured metadata", target: "/posts/hello", wantStatus: http.StatusOK,
+			wantContain: []string{
+				`<title>Hello &#34;Gopher&#34; | 测试博客</title>`, `<meta property="og:type" content="article"/>`,
+				`<meta property="og:image" content="https://blog.example.com/static/logo.png"/>`, `<meta name="twitter:card" content="summary"/>`,
+				`<meta property="article:published_time" content="`, `<meta property="article:section" content="技术"/>`, `<meta property="article:tag" content="go"/>`,
+				`<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting"`, `"headline":"Hello \"Gopher\""`,
+			},
+		},
+		{
+			name: "home page title is not doubled and describes the site", target: "/", wantStatus: http.StatusOK,
+			wantContain: []string{
+				"<title>测试博客 - 写给测试的博客</title>", `<meta name="description" content="写给测试的博客"/>`, `rel="canonical" href="https://blog.example.com/"`,
+				`"@type":"Blog"`, `"target":"https://blog.example.com/?keyword={search_term_string}"`, `<meta property="og:type" content="website"/>`,
+			},
+			wantAbsent: []string{"article:published_time", "测试博客 | 测试博客"},
+		},
+		{
+			name: "filtered and paged lists have their own canonical and no site data", target: "/?tag_id=1&page=1", wantStatus: http.StatusOK,
+			wantContain: []string{`rel="canonical" href="https://blog.example.com/?tag_id=1"`, "<title>标签：go | 测试博客</title>"},
+			wantAbsent:  []string{`"@type":"Blog"`},
+		},
+		{
+			name: "search results have no canonical", target: "/?keyword=gopher", wantStatus: http.StatusOK,
+			wantAbsent: []string{`rel="canonical"`},
+		},
+		{name: "archive canonical", target: "/archive", wantStatus: http.StatusOK, wantContain: []string{`rel="canonical" href="https://blog.example.com/archive"`, "<title>归档 | 测试博客</title>"}},
+		{
+			name: "articles are rendered on the server, without the editor.md stack", target: "/posts/hello", wantStatus: http.StatusOK,
+			wantContain: []string{`data-rendered="server"`, `<h2 id="小标题">小标题</h2>`, "<p>正文 <strong>内容</strong>。</p>", "/static/js/article.js", "prettify.min.js"},
+			wantAbsent:  []string{"jquery.min.js", "editormd", "<textarea", "marked.min.js"},
+		},
+		{
+			name: "code blocks are ready for prettify", target: "/posts/older", wantStatus: http.StatusOK,
+			wantContain: []string{`<pre class="prettyprint linenums"><code class="language-go">fmt.Println(1)`},
+		},
+		{
+			name: "content that needs editor.md falls back to the browser renderer", target: "/pages/flow", wantStatus: http.StatusOK,
+			wantContain: []string{"<textarea", "jquery.min.js", "editormd", "st=&gt;start"},
+			wantAbsent:  []string{`data-rendered="server"`},
 		},
 		{
 			name: "post links to its neighbour and related posts", target: "/posts/hello", wantStatus: http.StatusOK,
@@ -256,7 +302,7 @@ func TestFrontPages(t *testing.T) {
 		{name: "hidden post is a 404", target: "/posts/draft", wantStatus: http.StatusNotFound, wantContain: []string{"页面不存在", `content="noindex"`}},
 		{name: "missing post is a 404", target: "/posts/nope", wantStatus: http.StatusNotFound, wantContain: []string{"页面不存在"}},
 		{name: "unknown route is a themed 404", target: "/definitely/not/here", wantStatus: http.StatusNotFound, wantContain: []string{"返回首页"}},
-		{name: "page", target: "/pages/about", wantStatus: http.StatusOK, wantContain: []string{"关于我", `id="page-viewer"`}},
+		{name: "page", target: "/pages/about", wantStatus: http.StatusOK, wantContain: []string{"关于我", `id="page-viewer"`, `data-rendered="server"`, "<p>关于页面正文，足够长的一段介绍文字。</p>"}},
 		{name: "missing page is a 404", target: "/pages/nope", wantStatus: http.StatusNotFound},
 		{
 			name: "archive", target: "/archive", wantStatus: http.StatusOK,
@@ -316,5 +362,45 @@ func TestFrontPages(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestStaticCacheHeaders(t *testing.T) {
+	h := newTestServer(t)
+
+	tests := []struct {
+		target, want string
+	}{
+		{"/static/css/style.css?v=abc123", "public, max-age=31536000, immutable"},
+		{"/static/css/style.css", "public, max-age=86400, stale-while-revalidate=604800"},
+		{"/covers/c.jpg", "public, max-age=86400, stale-while-revalidate=604800"},
+		{"/static/nope.css?v=1", "no-store"},
+		{"/posts/hello", ""},
+		{"/api/search?q=go&v=1", "public, max-age=60"}, // the API's own policy, untouched
+	}
+	for _, tt := range tests {
+		if got := get(t, h, tt.target).Header().Get("Cache-Control"); got != tt.want {
+			t.Errorf("GET %s: Cache-Control = %q, want %q", tt.target, got, tt.want)
+		}
+	}
+}
+
+func TestClientRenderMode(t *testing.T) {
+	h := newTestServer(t, func(c *config.Config) { c.App.MarkdownRender = "client" })
+
+	for _, target := range []string{"/posts/hello", "/pages/about"} {
+		rec := get(t, h, target)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET %s: status = %d", target, rec.Code)
+		}
+		body := rec.Body.String()
+		for _, want := range []string{"<textarea", "jquery.min.js", "editormd"} {
+			if !strings.Contains(body, want) {
+				t.Errorf("GET %s: markdown_render=client must ship %q", target, want)
+			}
+		}
+		if strings.Contains(body, `data-rendered="server"`) {
+			t.Errorf("GET %s: must not be rendered on the server", target)
+		}
 	}
 }

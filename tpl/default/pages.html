@@ -1,4 +1,4 @@
-{{define "head"}}{{template "markdown-head" .}}{{end}}
+{{define "head"}}{{if not .content_html}}{{template "markdown-head" .}}{{end}}{{end}}
 
 {{define "content"}}
 <div class="container article-layout">
@@ -8,14 +8,18 @@
         </header>
 
         <article class="article-content">
+            {{if .content_html}}
+            <div id="page-viewer" class="markdown-body" data-rendered="server">{{.content_html}}</div>
+            {{else}}
             <div id="page-viewer" data-allow-script="1">
                 <textarea id="append-test" style="display:none;">{{.page.Content}}</textarea>
             </div>
             <noscript><p class="noscript-tip">本页需要启用 JavaScript 才能渲染正文。</p></noscript>
+            {{end}}
         </article>
         {{template "comments" .}}
     </div>
 </div>
 {{end}}
 
-{{define "scripts"}}{{template "markdown-scripts" .}}{{end}}
+{{define "scripts"}}{{if .content_html}}{{template "article-scripts" .}}{{else}}{{template "markdown-scripts" .}}{{end}}{{end}}
