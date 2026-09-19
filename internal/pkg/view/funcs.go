@@ -1,6 +1,7 @@
 package view
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -102,4 +103,21 @@ func AbsoluteURL(host, ref string) string {
 // SiteLogo is the absolute address of the site logo, the fallback preview image.
 func SiteLogo(host, cdn string) string {
 	return AbsoluteURL(host, strings.TrimRight(cdn, "/")+"/logo.png")
+}
+
+// Dict builds the argument of a partial that needs more than one value:
+// {{template "row" dict "id" .Id "csrf" $.csrf_token}}.
+func Dict(pairs ...any) (map[string]any, error) {
+	if len(pairs)%2 != 0 {
+		return nil, errors.New("dict: odd number of arguments")
+	}
+	m := make(map[string]any, len(pairs)/2)
+	for i := 0; i < len(pairs); i += 2 {
+		key, ok := pairs[i].(string)
+		if !ok {
+			return nil, fmt.Errorf("dict: key %v is not a string", pairs[i])
+		}
+		m[key] = pairs[i+1]
+	}
+	return m, nil
 }

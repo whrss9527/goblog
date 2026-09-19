@@ -252,3 +252,78 @@ func TestPostRenameKeepsCounters(t *testing.T) {
 	_, stale := r.views["old-slug"]
 	assert.False(t, stale)
 }
+
+func TestPostSaveNeverOverwritesAnotherPost(t *testing.T) {
+	r := setupTestRepo(t)
+	_, err := r.PostSave(model.Post{Title: "First", Identity: "first", Content: "one", Status: 1})
+	require.NoError(t, err)
+	_, err = r.PostSave(model.Post{Title: "Second", Identity: "second", Content: "two", Status: 1})
+	require.NoError(t, err)
+
+	// a new post with the address of an existing one
+	_, err = r.PostSave(model.Post{Title: "Impostor", Identity: "first", Content: "gone?", Status: 1})
+	assert.ErrorIs(t, err, ErrSlugTaken)
+
+	// renaming a post onto another post
+	_, err = r.PostSave(model.Post{Id: "second", Title: "Second", Identity: "first", Content: "two", Status: 1})
+	assert.ErrorIs(t, err, ErrSlugTaken)
+
+	first, err := r.GetPost("first")
+	require.NoError(t, err)
+	assert.Equal(t, "one", first.Content, "the existing post must be untouched")
+	second, err := r.GetPost("second")
+	require.NoError(t, err)
+	assert.Equal(t, "two", second.Content)
+	raw, err := os.ReadFile(filepath.Join(r.dataDir, "posts", "first.md"))
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), "one")
+}
+
+func TestPostSaveRejectsUnsafeSlugs(t *testing.T) {
+	r := setupTestRepo(t)
+	for _, slug := range []string{"", " ", "../escape", "a/b", `a\b`, ".hidden", "trailing ", "nul\x00byte"} {
+		_, err := r.PostSave(model.Post{Title: "T", Identity: slug, Content: "c", Status: 1})
+		assert.ErrorIs(t, err, ErrInvalidSlug, "slug %q", slug)
+	}
+	entries, err := os.ReadDir(filepath.Join(r.dataDir, "posts"))
+	require.NoError(t, err)
+	assert.Empty(t, entries, "nothing may be written for rejected slugs")
+	_, err = os.Stat(filepath.Join(r.dataDir, "escape.md"))
+	assert.True(t, os.IsNotExist(err))
+}
+
+func TestPostSaveKeepsUnusualSlugOfExistingPost(t *testing.T) {
+	r := setupTestRepo(t)
+	// loaded from disk, written long before slugs were validated
+	legacy := &model.Post{Id: "api-design-openapi&grpc", Identity: "api-design-openapi&grpc", Title: "Old", Content: "v1", Status: 1}
+	r.posts = append(r.posts, legacy)
+	r.postById[legacy.Id] = legacy
+	r.postBySlug[legacy.Identity] = legacy
+
+	_, err := r.PostSave(model.Post{Id: legacy.Id, Identity: legacy.Identity, Title: "Old", Content: "v2", Status: 1})
+	require.NoError(t, err)
+	got, err := r.GetPost(legacy.Id)
+	require.NoError(t, err)
+	assert.Equal(t, "v2", got.Content)
+}
+
+func TestPostSaveWithUnknownIdStartsANewPost(t *testing.T) {
+	r := setupTestRepo(t)
+	id, err := r.PostSave(model.Post{Id: "deleted-meanwhile", Identity: "fresh", Title: "T", Content: "c", Status: 1})
+	require.NoError(t, err)
+	assert.Equal(t, "fresh", id)
+	got, err := r.GetPost("fresh")
+	require.NoError(t, err)
+	assert.False(t, got.CreatedAt.IsZero(), "a new post needs a creation time")
+}
+
+func TestPageSaveRejectsUnsafeIds(t *testing.T) {
+	r := setupTestRepo(t)
+	for _, id := range []string{"", "../x", "a/b", ".env"} {
+		_, err := r.PageSave(model.Page{Id: id, Title: "T", Content: "c"})
+		assert.ErrorIs(t, err, ErrInvalidSlug, "id %q", id)
+	}
+	entries, err := os.ReadDir(filepath.Join(r.dataDir, "pages"))
+	require.NoError(t, err)
+	assert.Empty(t, entries)
+}

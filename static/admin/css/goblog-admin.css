@@ -1,0 +1,567 @@
+/* goblog admin: additions on top of SB Admin (Bootstrap 5).
+   Loaded after the vendor stylesheet on every admin page. */
+
+:root {
+    --admin-accent: #209460;
+    --admin-gap: 16px;
+}
+
+body.admin {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+    -webkit-text-size-adjust: 100%;
+}
+
+/* ---------- chrome ---------- */
+.admin .sb-topnav .navbar-brand {
+    overflow: hidden;
+    max-width: 50vw;
+    text-overflow: ellipsis;
+}
+
+.admin-sidebar-toggle {
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.admin-sidebar-toggle:hover,
+.admin-sidebar-toggle:focus-visible {
+    color: #fff;
+}
+
+.admin-topnav-links {
+    flex-direction: row;
+    gap: 2px;
+}
+
+.admin-topnav-links .nav-link {
+    padding: 10px 10px;
+    white-space: nowrap;
+}
+
+.admin .sb-sidenav .nav-link {
+    padding-top: 0.85rem;
+    padding-bottom: 0.85rem;
+}
+
+.admin .sb-sidenav .nav-link.active {
+    box-shadow: inset 3px 0 0 var(--admin-accent);
+}
+
+.admin-page-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 22px 0 16px;
+}
+
+.admin-page-head h1 {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 600;
+}
+
+.admin-page-head h1 small {
+    margin-left: 6px;
+    color: #6c757d;
+    font-size: 0.9rem;
+    font-weight: 400;
+}
+
+.admin-hint {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.admin-note {
+    margin-bottom: 16px;
+}
+
+/* ---------- tables ---------- */
+.admin-table {
+    width: 100%;
+}
+
+.admin-table td,
+.admin-table th {
+    vertical-align: middle;
+}
+
+.admin-title {
+    display: block;
+    color: #212529;
+    font-weight: 500;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.admin-title:hover {
+    color: var(--admin-accent);
+}
+
+.admin-sub {
+    display: block;
+    margin-top: 2px;
+    color: #6c757d;
+    font-size: 0.8rem;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.admin-sub:hover {
+    text-decoration: underline;
+}
+
+.admin-nowrap {
+    white-space: nowrap;
+}
+
+.admin-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+}
+
+.admin-actions form {
+    margin: 0;
+}
+
+.admin-actions .btn {
+    white-space: nowrap;
+}
+
+.admin .dataTable-top,
+.admin .dataTable-bottom {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 0;
+}
+
+.admin .dataTable-top::after,
+.admin .dataTable-bottom::after {
+    display: none;
+}
+
+.admin .dataTable-top > *,
+.admin .dataTable-bottom > * {
+    float: none;
+}
+
+.admin .dataTable-search {
+    flex: 1 1 180px;
+    max-width: 320px;
+}
+
+.admin .dataTable-input {
+    width: 100%;
+}
+
+.admin .dataTable-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.admin .dataTable-pagination a {
+    min-width: 40px;
+    min-height: 40px;
+    display: inline-grid;
+    place-items: center;
+}
+
+/* secondary columns leave on smaller screens */
+@media (max-width: 991.98px) {
+    .admin-table .col-lg { display: none; }
+}
+
+@media (max-width: 767.98px) {
+    .admin-table .col-md { display: none; }
+
+    .admin .card-body {
+        padding: 12px;
+    }
+
+    .admin .dataTable-table > tbody > tr > td,
+    .admin .dataTable-table > thead > tr > th {
+        padding: 10px 6px;
+    }
+
+    .admin-actions {
+        flex-direction: column;
+    }
+
+    .admin-actions .btn {
+        width: 100%;
+        min-height: 36px;
+    }
+
+    .admin .dataTable-dropdown {
+        font-size: 0.85rem;
+    }
+}
+
+/* ---------- forms ---------- */
+.admin-form-card {
+    max-width: 720px;
+}
+
+.admin-form .form-control,
+.admin-form .form-select,
+.editor-form .form-control,
+.editor-form .form-select {
+    font-size: 16px; /* iOS zooms into anything smaller */
+}
+
+.admin-form-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.admin-form-actions .btn-primary {
+    min-width: 120px;
+}
+
+.admin-cover-preview {
+    display: block;
+    max-height: 160px;
+    margin-top: 10px;
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* ---------- Markdown editor pages ---------- */
+body.admin-editor {
+    background: #f4f5f7;
+}
+
+.editor-form {
+    max-width: 1500px;
+    margin: 0 auto;
+    padding: 0 12px calc(12px + env(safe-area-inset-bottom));
+}
+
+.editor-bar {
+    position: sticky;
+    top: 0;
+    z-index: 1030;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 -12px 12px;
+    padding: 8px 12px;
+    padding-top: calc(8px + env(safe-area-inset-top));
+    background: #212529;
+    color: #fff;
+}
+
+.editor-back {
+    display: inline-grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    margin-left: -6px;
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.editor-back:hover,
+.editor-back:focus-visible {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.editor-bar-title {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.editor-status {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.82rem;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.editor-status[data-tone="ok"] {
+    color: #8fe3b4;
+}
+
+.editor-bar .btn {
+    min-height: 36px;
+    padding-left: 14px;
+    padding-right: 14px;
+    white-space: nowrap;
+}
+
+.editor-alert {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin-bottom: 12px;
+}
+
+.editor-alert-actions {
+    display: inline-flex;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.editor-fields {
+    margin-bottom: 12px;
+}
+
+.editor-field-title .form-control {
+    font-weight: 600;
+}
+
+.editor-meta {
+    margin-top: 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.editor-meta > summary {
+    padding: 10px 14px;
+    cursor: pointer;
+    font-weight: 500;
+    user-select: none;
+}
+
+.editor-meta-summary {
+    margin-left: 10px;
+    color: #6c757d;
+    font-size: 0.85rem;
+    font-weight: 400;
+}
+
+.editor-meta[open] .editor-meta-summary {
+    display: none;
+}
+
+.editor-meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 16px;
+    padding: 4px 14px 16px;
+}
+
+.editor-meta-grid-single {
+    grid-template-columns: minmax(0, 420px);
+    padding: 0;
+    margin-top: 10px;
+}
+
+.editor-field-wide {
+    grid-column: 1 / -1;
+}
+
+.editor-field .form-label {
+    margin-bottom: 4px;
+    color: #495057;
+    font-size: 0.88rem;
+}
+
+.editor-field .form-text[data-tone="error"] {
+    color: #dc3545;
+}
+
+.tag-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-height: 72px; /* two rows, the rest scrolls */
+    margin-top: 8px;
+    overflow-y: auto;
+}
+
+.tag-chip {
+    padding: 3px 10px;
+    border: 1px solid #ced4da;
+    border-radius: 999px;
+    background: #fff;
+    color: #495057;
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.tag-chip.is-on {
+    border-color: var(--admin-accent);
+    background: var(--admin-accent);
+    color: #fff;
+}
+
+#editor-md {
+    border-radius: 8px;
+    /* editor.md sets an inline width; never wider than the screen */
+    max-width: 100%;
+}
+
+.admin-editor .editormd {
+    margin-bottom: 0;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.admin-editor .editormd-fullscreen {
+    z-index: 1040; /* above the sticky bar */
+    border-radius: 0;
+}
+
+.admin-editor .CodeMirror {
+    font-size: 15px;
+}
+
+.admin-editor .editormd-preview-container {
+    font-size: 15px;
+}
+
+.editor-foot {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 4px 16px;
+    padding: 10px 2px 0;
+    color: #6c757d;
+    font-size: 0.82rem;
+}
+
+@media (max-width: 899px) {
+    .editor-meta-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .editor-bar-title {
+        display: none;
+    }
+
+    .editor-status {
+        text-align: left;
+    }
+
+    .editor-foot-tip {
+        display: none;
+    }
+
+    /* larger touch targets for the toolbar */
+    .admin-editor .editormd-toolbar-container {
+        padding: 2px 4px;
+    }
+
+    .admin-editor .editormd-menu > li > a {
+        width: 34px;
+        height: 34px;
+        line-height: 34px;
+    }
+
+    .admin-editor .editormd-menu > li.divider {
+        display: none;
+    }
+
+    .admin-editor .CodeMirror {
+        font-size: 16px;
+    }
+
+    /* editor.md dialogs have fixed pixel sizes: fit them to the screen */
+    .admin-editor .editormd-dialog {
+        left: 12px !important;
+        width: calc(100vw - 24px) !important;
+        height: auto !important; /* stacked labels need more room than the inline height */
+        max-height: calc(100vh - 24px);
+        overflow-y: auto;
+    }
+
+    .admin-editor .editormd-dialog .editormd-dialog-container {
+        height: auto !important;
+    }
+
+    .admin-editor .editormd-code-block-dialog textarea,
+    .admin-editor .editormd-preformatted-text-dialog textarea {
+        height: 40vh;
+    }
+
+    .admin-editor .editormd-dialog-container {
+        padding: 12px 14px;
+    }
+
+    .admin-editor .editormd-form label {
+        float: none;
+        display: block;
+        width: auto;
+        text-align: left;
+    }
+
+    .admin-editor .editormd-form input[type="text"],
+    .admin-editor .editormd-form input[type="number"],
+    .admin-editor .editormd-form select,
+    .admin-editor .editormd-form textarea {
+        width: 100% !important;
+        max-width: 100%;
+        font-size: 16px;
+    }
+
+    .admin-editor .editormd-dialog-footer {
+        padding: 0 14px 14px;
+    }
+}
+
+/* ---------- sign in ---------- */
+.admin-auth {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: grid;
+    place-items: center;
+    padding: 24px 16px;
+    background: linear-gradient(140deg, #1d2b26, #209460);
+}
+
+.admin-auth-card {
+    width: 100%;
+    max-width: 380px;
+    padding: 28px 24px;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+}
+
+.admin-auth-card h1 {
+    margin: 0 0 4px;
+    font-size: 1.35rem;
+    font-weight: 600;
+}
+
+.admin-auth-card p {
+    margin: 0 0 20px;
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.admin-auth-card .form-control {
+    font-size: 16px;
+}
+
+.admin-auth-card .btn {
+    width: 100%;
+    min-height: 44px;
+}
+
+.admin-auth-back {
+    display: block;
+    margin-top: 16px;
+    color: #6c757d;
+    font-size: 0.85rem;
+    text-align: center;
+    text-decoration: none;
+}

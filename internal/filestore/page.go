@@ -62,6 +62,10 @@ func (r *FileRepository) PageSave(page model.Page) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	if !safeSlug(page.Id) { // the id becomes pages/<id>.md
+		return "", ErrInvalidSlug
+	}
+
 	for i, p := range r.pages {
 		if p.Id == page.Id {
 			r.pages[i].Title = page.Title

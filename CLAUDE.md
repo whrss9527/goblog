@@ -95,6 +95,22 @@ The Gin engine is initialized in `internal/pkg/gin/gin.go` (CORS, error handling
   layout prints unconditionally need a default in `view.RenderStatus`, otherwise html/template prints `<no value>`.
 - Release flow: bump `internal/version/version.go`, add a section to `CHANGELOG.md`, one commit per version.
 
+### Admin conventions
+
+- Every admin template is parsed together with `tpl/admin/_partials.html` and the template func map
+  (`asset`, `formatTime`, `dict`, `pathEscape`, …). List and form pages use `admin-head` / `admin-open` /
+  `admin-close`; the two Markdown editors (`posts/add`, `pages/add`) use `editor-head` / `editor-scripts`.
+- Vendor files (SB Admin / Bootstrap 5, simple-datatables, editor.md) come from `{{.cdn}}`; anything goblog adds
+  lives in `static/admin/` (`css/goblog-admin.css`, `js/goblog-admin.js`, `js/goblog-editor.js`) and is referenced
+  with `{{asset "/static/admin/..."}}` — the CDN bucket does not have these files.
+- `view.AdminRenderStatus` sets `site_name`, `site_version`, `this_year` (prefixed on purpose: handlers use plain
+  keys such as `name` for form values).
+- A rejected save re-renders the editor (HTTP 422) with everything the author typed plus `error`; never send the
+  author to a bare error page. Slug rules live in `internal/handler/admin/validate.go`; `filestore.PostSave` /
+  `PageSave` have their own last-line checks (`ErrInvalidSlug`, `ErrSlugTaken`). An unchanged legacy slug always passes.
+- The editor keeps a local draft in `localStorage` (`goblog:draft:<kind>:<id|new>`); a successful save redirects to
+  the list with `?saved=<slug>`, which is what clears the draft.
+
 ### Package Map
 
 - `pkg/` — Generic libraries (cache, utils, exception handling).

@@ -8,7 +8,9 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -37,6 +39,8 @@ var funcMap = template.FuncMap{
 		return template.CSS(fmt.Sprintf("font-size:%dpx", 13+steps*2))
 	},
 	"inc":            func(i int) int { return i + 1 },
+	"dict":           Dict,
+	"pathEscape":     url.PathEscape,
 	"asset":          AssetURL,
 	"excerpt":        Excerpt,
 	"readingMinutes": ReadingMinutes,
@@ -105,7 +109,8 @@ func InitTemplates() {
 		}
 		for _, page := range adminPages {
 			tplPath := "tpl/admin/" + page + ".html"
-			t, err := template.ParseFiles(tplPath)
+			// every admin page shares the chrome defined in _partials.html
+			t, err := template.New(filepath.Base(tplPath)).Funcs(funcMap).ParseFiles(tplPath, "tpl/admin/_partials.html")
 			if err != nil {
 				slog.Error("parse admin template failed", "page", page, "err", err)
 				continue
@@ -212,7 +217,18 @@ func AdminRenderWithCSRF(data map[string]any, w http.ResponseWriter, tpl string,
 }
 
 func AdminRender(data map[string]any, w http.ResponseWriter, tpl string, appConf *config.AppConfig) {
+	AdminRenderStatus(http.StatusOK, data, w, tpl, appConf)
+}
+
+// AdminRenderStatus renders an admin template with the given status code. Like
+// the front renderer it executes into a buffer first, so a template error
+// never leaves half a page behind.
+func AdminRenderStatus(status int, data map[string]any, w http.ResponseWriter, tpl string, appConf *config.AppConfig) {
+	// prefixed: handlers use plain keys such as "name" and "year" for form values
 	data["cdn"] = appConf.Cdn
+	data["site_name"] = appConf.Name
+	data["site_version"] = version.Version
+	data["this_year"] = time.Now().Year()
 
 	t, ok := adminTemplates[tpl]
 	if !ok {
@@ -220,8 +236,17 @@ func AdminRender(data map[string]any, w http.ResponseWriter, tpl string, appConf
 		http.Error(w, "page not found", http.StatusNotFound)
 		return
 	}
-	if err := t.Execute(w, data); err != nil {
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, data); err != nil {
 		slog.Error("render admin template failed", "tpl", tpl, "err", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(status)
+	if _, err := buf.WriteTo(w); err != nil {
+		slog.Debug("write response failed", "tpl", tpl, "err", err)
 	}
 }
 

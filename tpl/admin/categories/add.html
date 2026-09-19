@@ -1,29 +1,26 @@
 <!DOCTYPE html>
-<html lang="zh">
-
-<head>
-    <meta charset="utf-8" />
-    <title>Simple example - Editor.md examples</title>
-    <link rel="stylesheet" type="text/css" media="screen" href="{{.cdn}}/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="{{.cdn}}/md/css/style.css" />
-</head>
-
-<body>
-    <div id="layout">
-        <header>
-            <h1>添加分类 <a href="/admin">返回列表</a></h1>
-        </header>
-        <form class="navbar-form nav navbar-form" action="/admin/categories/save" method="POST">
+<html lang="zh-CN">
+<head>{{template "admin-head" .}}<title>{{if .id}}编辑分类{{else}}添加分类{{end}} · 后台</title></head>
+{{template "admin-open" .}}
+<div class="admin-page-head">
+    <h1>{{if .id}}编辑分类{{else}}添加分类{{end}}</h1>
+    <a class="btn btn-outline-secondary" href="/admin/categories">返回列表</a>
+</div>
+<div class="card admin-form-card">
+    <div class="card-body">
+        <form class="admin-form" action="/admin/categories/save" method="POST">
             <input type="hidden" name="_csrf" value="{{.csrf_token}}">
             <input type="hidden" name="id" value="{{.id}}">
-            <label style="margin-left: 75px;">
-                分类名称：<input class="form-control" type="text" name="name" value="{{.name}}">
-            </label>
-            <div class="btns">
-                <button id="append-btn" type="submit">提交</button>
+            <div class="mb-4">
+                <label class="form-label" for="category-name">分类名称</label>
+                <input class="form-control" id="category-name" type="text" name="name" value="{{.name}}" required autofocus>
+            </div>
+            <div class="admin-form-actions">
+                <button type="submit" class="btn btn-primary">保存</button>
+                <a class="btn btn-link" href="/admin/categories">取消</a>
             </div>
         </form>
     </div>
-</body>
-
+</div>
+{{template "admin-close" .}}
 </html>

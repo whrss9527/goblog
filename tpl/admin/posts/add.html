@@ -1,70 +1,75 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
+<head>{{template "editor-head" .}}<title>{{if .id}}编辑文章{{else}}写文章{{end}} · 后台</title></head>
+<body class="admin admin-editor">
+<form id="editor-form" class="editor-form" action="/admin/posts/save" method="POST"
+      data-kind="post" data-id="{{.id}}" data-lib="{{.cdn}}/md/lib/" data-slugs="{{.slugs_json}}">
+    <input type="hidden" name="_csrf" value="{{.csrf_token}}">
+    <input type="hidden" name="id" value="{{.id}}">
 
-<head>
-    <meta charset="utf-8" />
-    <title>Simple example - Editor.md examples</title>
-    <link rel="stylesheet" type="text/css" media="screen" href="{{.cdn}}/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="{{.cdn}}/md/css/style.css" />
-    <link rel="stylesheet" href="{{.cdn}}/md/css/editormd.css" />
-</head>
+    <header class="editor-bar">
+        <a class="editor-back" href="/admin" aria-label="返回文章列表">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        </a>
+        <span class="editor-bar-title">{{if .id}}编辑文章{{else}}写文章{{end}}</span>
+        <span class="editor-status" id="editor-status" aria-live="polite"></span>
+        {{if .id}}<a class="btn btn-sm btn-outline-light editor-view" href="/posts/{{.id}}" target="_blank" rel="noopener">查看</a>{{end}}
+        <button type="submit" class="btn btn-sm btn-success" title="Ctrl / ⌘ + S">{{if .id}}保存{{else}}发布{{end}}</button>
+    </header>
 
-<body>
-    <div id="layout">
-        <header>
-            <h1>添加文章 <a href="/admin">返回列表</a></h1>
-        </header>
-        <form class="navbar-form nav navbar-form" action="/admin/posts/save" method="POST">
-            <input type="hidden" name="_csrf" value="{{.csrf_token}}">
-            <input type="hidden" name="id" value="{{.id}}">
-            <label for="" style="margin-left: 75px;">
-                标题：<input class="form-control" type="text" name="title" value="{{.title}}">
-                英文标题（ID）：<input class="form-control" type="text" name="identity" value="{{.identity}}">
-                分类：<select class="form-control" name="category">
+    {{if .error}}<div class="alert alert-danger editor-alert" role="alert"><strong>没有保存：</strong>{{.error}}</div>{{end}}
+    <div class="alert alert-warning editor-alert" id="draft-banner" hidden>
+        <span data-role="text"></span>
+        <span class="editor-alert-actions">
+            <button type="button" class="btn btn-sm btn-warning" data-role="restore">恢复草稿</button>
+            <button type="button" class="btn btn-sm btn-link" data-role="discard">丢弃</button>
+        </span>
+    </div>
+
+    <div class="editor-fields">
+        <div class="editor-field editor-field-title">
+            <label class="visually-hidden" for="f-title">标题</label>
+            <input class="form-control form-control-lg" id="f-title" type="text" name="title" value="{{.title}}" placeholder="文章标题" required autocomplete="off">
+        </div>
+        <details class="editor-meta" id="editor-meta">
+            <summary>文章设置<span class="editor-meta-summary">地址 · 分类 · 标签 · 摘要</span></summary>
+            <div class="editor-meta-grid">
+                <div class="editor-field">
+                    <label class="form-label" for="f-identity">地址（英文标题）</label>
+                    <input class="form-control" id="f-identity" type="text" name="identity" value="{{.identity}}" data-initial="{{.id}}" data-prefix="/posts/"
+                           placeholder="my-first-post" autocapitalize="off" autocomplete="off" spellcheck="false" inputmode="url">
+                    <div class="form-text" id="slug-hint"></div>
+                </div>
+                <div class="editor-field">
+                    <label class="form-label" for="f-category">分类</label>
+                    <select class="form-select" id="f-category" name="category">
                         {{range .categories}}
-                            <option value="{{.Id}}" {{if eq .Id .Cur}} selected {{end}}>{{.Name}}</option>
+                        <option value="{{.Id}}" {{if eq .Id .Cur}}selected{{end}}>{{.Name}}</option>
                         {{end}}
                     </select>
-                标签：<input class="form-control" type="text" name="tags" value="{{.tags}}">
-            </label>
-            <p style="margin-left: 75px;">
-                <label for="">
-                    描述：<textarea class="form-control" name="description" id="" cols="72" rows="3">{{.description}}</textarea>
-                </label>
-            </p>
-            <div id="test-editormd">
-                <textarea style="display:none;" name="content">{{.content}}</textarea>
+                </div>
+                <div class="editor-field editor-field-wide">
+                    <label class="form-label" for="f-tags">标签（逗号分隔，新标签会自动创建）</label>
+                    <input class="form-control" id="f-tags" type="text" name="tags" value="{{.tags}}" placeholder="go,mysql" autocapitalize="off" autocomplete="off">
+                    <div class="tag-suggestions" id="tag-suggestions" data-tags="{{.all_tags_json}}" aria-label="已有标签，点击添加或移除"></div>
+                </div>
+                <div class="editor-field editor-field-wide">
+                    <label class="form-label" for="f-description">摘要</label>
+                    <textarea class="form-control" id="f-description" name="description" rows="3" placeholder="显示在首页列表和搜索结果里的一两句话">{{.description}}</textarea>
+                    <div class="form-text" id="description-count"></div>
+                </div>
             </div>
-            <div class="btns">
-                <button id="append-btn" type="submit">提交</button>
-            </div>
-        </form>
+        </details>
     </div>
-    <script src="{{.cdn}}/md/js/jquery.min.js"></script>
-    <script src="{{.cdn}}/md/editormd.min.js"></script>
-    <script type="text/javascript">
-        var testEditor;
 
-        $(function () {
-            testEditor = editormd("test-editormd", {
-                emoji : true,
-                width: "90%",
-                height: 640,
-                syncScrolling: "single",
-                path: "{{.cdn}}/md/lib/"
-            });
-
-            /*
-            // or
-            testEditor = editormd({
-                id      : "test-editormd",
-                width   : "90%",
-                height  : 640,
-                path    : "../lib/"
-            });
-            */
-        });
-    </script>
+    <div id="editor-md">
+        <textarea style="display:none;" name="content">{{.content}}</textarea>
+    </div>
+    <footer class="editor-foot">
+        <span id="editor-count"></span>
+        <span class="editor-foot-tip">Ctrl / ⌘ + S 保存 · 输入内容会自动在本机留一份草稿</span>
+    </footer>
+</form>
+{{template "editor-scripts" .}}
 </body>
-
 </html>

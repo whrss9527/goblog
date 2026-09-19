@@ -2,6 +2,7 @@ package filestore
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -214,11 +215,36 @@ func (r *FileRepository) IncrLike(id string) (int, error) {
 	return p.Likes, nil
 }
 
+// ErrSlugTaken is returned when a post would take the address of another post.
+var ErrSlugTaken = errors.New("slug is already used by another post")
+
+// ErrInvalidSlug is returned for slugs that cannot be a file name below posts/.
+var ErrInvalidSlug = errors.New("slug is empty or not a safe file name")
+
+// safeSlug is the last line of defence before a slug becomes a file name; the
+// admin handlers apply the stricter, friendlier rules.
+func safeSlug(slug string) bool {
+	return slug != "" && slug == strings.TrimSpace(slug) && !strings.HasPrefix(slug, ".") &&
+		!strings.ContainsAny(slug, `/\`) && !strings.Contains(slug, "..") && !strings.ContainsRune(slug, 0)
+}
+
 func (r *FileRepository) PostSave(post model.Post) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	isNew := post.Id == ""
+	existing, exists := r.postById[post.Id]
+	isNew := post.Id == "" || !exists // an id that is gone (deleted elsewhere) starts a new post
+	// An unchanged slug is always fine (a few old posts have unusual ones). A
+	// new or changed slug must be safe and must not belong to another post:
+	// saving would silently overwrite that post.
+	if isNew || existing.Identity != post.Identity {
+		if !safeSlug(post.Identity) {
+			return "", ErrInvalidSlug
+		}
+		if _, taken := r.postBySlug[post.Identity]; taken {
+			return "", ErrSlugTaken
+		}
+	}
 	if isNew {
 		post.Id = post.Identity
 		post.CreatedAt = time.Now()

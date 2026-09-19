@@ -1,59 +1,54 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
+<head>{{template "editor-head" .}}<title>{{if .id}}编辑页面{{else}}新建页面{{end}} · 后台</title></head>
+<body class="admin admin-editor">
+<form id="editor-form" class="editor-form" action="/admin/pages/save" method="POST"
+      data-kind="page" data-id="{{.id}}" data-lib="{{.cdn}}/md/lib/" data-slugs="{{.slugs_json}}">
+    <input type="hidden" name="_csrf" value="{{.csrf_token}}">
+    <input type="hidden" name="id" value="{{.id}}">
 
-<head>
-    <meta charset="utf-8"/>
-    <title>Simple example - Editor.md examples</title>
-    <link rel="stylesheet" type="text/css" media="screen" href="{{.cdn}}/css/bootstrap.min.css"/>
-    <link rel="stylesheet" href="{{.cdn}}/md/css/style.css"/>
-    <link rel="stylesheet" href="{{.cdn}}/md/css/editormd.css"/>
-</head>
-
-<body>
-<div id="layout">
-    <header>
-        <h1>添加页面 <a href="/admin">返回列表</a></h1>
+    <header class="editor-bar">
+        <a class="editor-back" href="/admin/pages" aria-label="返回页面列表">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        </a>
+        <span class="editor-bar-title">{{if .id}}编辑页面{{else}}新建页面{{end}}</span>
+        <span class="editor-status" id="editor-status" aria-live="polite"></span>
+        {{if .id}}<a class="btn btn-sm btn-outline-light editor-view" href="/pages/{{.id}}" target="_blank" rel="noopener">查看</a>{{end}}
+        <button type="submit" class="btn btn-sm btn-success" title="Ctrl / ⌘ + S">保存</button>
     </header>
-    <form class="navbar-form nav navbar-form" action="/admin/pages/save" method="POST">
-        <input type="hidden" name="_csrf" value="{{.csrf_token}}">
-        <label style="margin-left: 75px;">
-            <input type="text" name="page_id" value="{{.id}}">
-        </label>
-        <label style="margin-left: 75px;">
-            标题：<input class="form-control" type="text" name="title" value="{{.title}}">
-        </label>
-        <div id="test-editormd">
-            <textarea style="display:none;" name="content">{{.content}}</textarea>
-        </div>
-        <div class="btns">
-            <button id="append-btn" type="submit">提交</button>
-        </div>
-    </form>
-</div>
-<script src="{{.cdn}}/md/js/jquery.min.js"></script>
-<script src="{{.cdn}}/md/editormd.min.js"></script>
-<script type="text/javascript">
-    var testEditor;
 
-    $(function () {
-        testEditor = editormd("test-editormd", {
-            width: "90%",
-            height: 640,
-            syncScrolling: "single",
-            path: "{{.cdn}}/md/lib/"
-        });
+    {{if .error}}<div class="alert alert-danger editor-alert" role="alert"><strong>没有保存：</strong>{{.error}}</div>{{end}}
+    <div class="alert alert-warning editor-alert" id="draft-banner" hidden>
+        <span data-role="text"></span>
+        <span class="editor-alert-actions">
+            <button type="button" class="btn btn-sm btn-warning" data-role="restore">恢复草稿</button>
+            <button type="button" class="btn btn-sm btn-link" data-role="discard">丢弃</button>
+        </span>
+    </div>
 
-        /*
-        // or
-        testEditor = editormd({
-            id      : "test-editormd",
-            width   : "90%",
-            height  : 640,
-            path    : "../lib/"
-        });
-        */
-    });
-</script>
+    <div class="editor-fields">
+        <div class="editor-field editor-field-title">
+            <label class="visually-hidden" for="f-title">标题</label>
+            <input class="form-control form-control-lg" id="f-title" type="text" name="title" value="{{.title}}" placeholder="页面标题" required autocomplete="off">
+        </div>
+        <div class="editor-meta-grid editor-meta-grid-single">
+            <div class="editor-field">
+                <label class="form-label" for="f-page-id">地址</label>
+                <input class="form-control" id="f-page-id" type="text" name="page_id" value="{{if .page_id}}{{.page_id}}{{else}}{{.id}}{{end}}" data-initial="{{.id}}" data-prefix="/pages/"
+                       placeholder="about" autocapitalize="off" autocomplete="off" spellcheck="false" inputmode="url" {{if .id}}readonly{{end}}>
+                <div class="form-text" id="slug-hint"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="editor-md">
+        <textarea style="display:none;" name="content">{{.content}}</textarea>
+    </div>
+    <footer class="editor-foot">
+        <span id="editor-count"></span>
+        <span class="editor-foot-tip">Ctrl / ⌘ + S 保存 · 输入内容会自动在本机留一份草稿</span>
+    </footer>
+</form>
+{{template "editor-scripts" .}}
 </body>
-
 </html>

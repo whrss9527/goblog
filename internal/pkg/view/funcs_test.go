@@ -44,3 +44,31 @@ func TestHumanCount(t *testing.T) {
 		}
 	}
 }
+
+func TestDict(t *testing.T) {
+	m, err := Dict("id", 7, "name", "go")
+	if err != nil || m["id"] != 7 || m["name"] != "go" {
+		t.Errorf("Dict() = %v, %v", m, err)
+	}
+	if _, err := Dict("only-key"); err == nil {
+		t.Errorf("an odd number of arguments must be an error")
+	}
+	if _, err := Dict(1, "value"); err == nil {
+		t.Errorf("non-string keys must be an error")
+	}
+}
+
+func TestAbsoluteURL(t *testing.T) {
+	tests := []struct{ host, ref, want string }{
+		{"https://blog.example.com", "https://img.example/a.png", "https://img.example/a.png"},
+		{"https://blog.example.com/", "/covers/a.jpg", "https://blog.example.com/covers/a.jpg"},
+		{"https://blog.example.com", "//cdn.example/a.png", "https://cdn.example/a.png"},
+		{"https://blog.example.com", "relative/a.png", ""},
+		{"https://blog.example.com", "  ", ""},
+	}
+	for _, tt := range tests {
+		if got := AbsoluteURL(tt.host, tt.ref); got != tt.want {
+			t.Errorf("AbsoluteURL(%q, %q) = %q, want %q", tt.host, tt.ref, got, tt.want)
+		}
+	}
+}

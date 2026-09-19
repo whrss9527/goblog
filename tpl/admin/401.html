@@ -1,52 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="utf-8" />
-        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-        <meta name="description" content="" />
-        <meta name="author" content="" />
-        <title>401 Error - Admin</title>
-        <link href="{{.cdn}}/admin/css/styles.css" rel="stylesheet" />
-        <script src="{{.cdn}}/admin/js/all.min.js" crossorigin="anonymous"></script>
-    </head>
-    <body>
-        <div id="layoutError">
-            <div id="layoutError_content">
-                <main>
-                    <div class="container">
-                        <div class="row justify-content-center">
-                            <div class="col-lg-6">
-                                <div class="text-center mt-4">
-                                    <h1 class="display-1">401</h1>
-                                    <p class="lead">Unauthorized</p>
-                                    <p>{{.msg}}.</p>
-                                    <a href="/admin">
-                                        <i class="fas fa-arrow-left me-1"></i>
-                                        Return to Dashboard
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </main>
-            </div>
-            <div id="layoutError_footer">
-                <footer class="py-4 bg-light mt-auto">
-                    <div class="container-fluid px-4">
-                        <div class="d-flex align-items-center justify-content-between small">
-                            <div class="text-muted">Copyright &copy; Your Website 2021</div>
-                            <div>
-                                <a href="#">Privacy Policy</a>
-                                &middot;
-                                <a href="#">Terms &amp; Conditions</a>
-                            </div>
-                        </div>
-                    </div>
-                </footer>
-            </div>
-        </div>
-        <script src="{{.cdn}}/admin/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
-        <script src="{{.cdn}}/admin/js/scripts.js"></script>
-    </body>
+<html lang="zh-CN">
+<head>{{template "admin-head" .}}<title>出错了 · 后台</title></head>
+<body class="admin">
+<main class="admin-auth">
+    <div class="admin-auth-card">
+        <h1>操作没有完成</h1>
+        <p>{{if .msg}}{{.msg}}{{else}}请重试{{end}}</p>
+        <button type="button" class="btn btn-primary" onclick="history.back()">返回上一页</button>
+        <a class="admin-auth-back" href="/admin">回到后台首页</a>
+    </div>
+</main>
+</body>
 </html>

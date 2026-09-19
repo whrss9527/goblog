@@ -3,12 +3,15 @@ package admin
 import (
 	"log/slog"
 	"net/http"
+	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 
 	"goblog/internal/config"
+	"goblog/internal/filestore"
 	"goblog/internal/handler/front"
 	"goblog/internal/pkg/model"
 	"goblog/internal/pkg/utils"
@@ -36,36 +39,24 @@ func NewPostHandler(postRepo repository.PostRepository, categoryRepo repository.
 	}
 }
 
-// PostList 处理文章列表请求
+// PostList 处理文章列表请求。The table searches, sorts and pages in the browser, so
+// it gets every post; with the old server-side page size of 11 anything older
+// than the newest eleven posts could not be reached from the admin.
 func (h *PostHandler) PostList(ctx *gin.Context) {
-	categoryId := ctx.Request.URL.Query().Get("category_id")
-	tagId := ctx.Request.URL.Query().Get("tag_id")
-	pageSize, _ := strconv.Atoi(ctx.Request.URL.Query().Get("per_page"))
-	page, _ := strconv.Atoi(ctx.Request.URL.Query().Get("page"))
-	if pageSize <= 0 {
-		pageSize = 11
-	}
-	if page <= 1 {
-		page = 1
-	}
-	prePage := page - 1
-	nextPage := page + 1
-	if prePage <= 1 {
-		prePage = 1
-	}
 	posts, _, err := h.PostRepo.GetPosts(repository.PostParams{
-		CategoryId: categoryId,
-		TagId:      tagId,
-		PerPage:    pageSize,
-		Page:       page,
+		CategoryId: ctx.Query("category_id"),
+		TagId:      ctx.Query("tag_id"),
+		Page:       1,
 	})
 	if err != nil {
 		slog.Error("get posts failed", "err", err)
+		ctx.Writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	categories, err := h.CategoryRepo.GetCategories()
 	if err != nil {
 		slog.Error("get categories failed", "err", err)
+		ctx.Writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	categoryMap := make(map[int]model.Category)
@@ -74,20 +65,18 @@ func (h *PostHandler) PostList(ctx *gin.Context) {
 	}
 	for index, post := range posts {
 		posts[index].CategoryName = categoryMap[post.CategoryId].Name
+		posts[index].CreatedAt = post.CreatedAt.In(adminZone)
+		posts[index].UpdatedAt = post.UpdatedAt.In(adminZone)
 	}
 	data := make(map[string]interface{})
 	data["posts"] = posts
 	data["categories"] = categories
-	data["page"] = page
-	data["pre_url"] = h.getPageUrl(categoryId, tagId, strconv.Itoa(prePage))
-	data["next_url"] = h.getPageUrl(categoryId, tagId, strconv.Itoa(nextPage))
 	data["csrf_token"], _ = ctx.Get("csrf_token")
 	view.AdminRender(data, ctx.Writer, "posts/list", h.config.App)
 }
 
 // PostAdd 处理文章添加请求
 func (h *PostHandler) PostAdd(ctx *gin.Context) {
-	data := make(map[string]interface{})
 	id := ctx.Request.FormValue("id")
 	var post model.Post
 	if len(id) > 0 {
@@ -95,15 +84,23 @@ func (h *PostHandler) PostAdd(ctx *gin.Context) {
 		post, err = h.PostRepo.GetPost(id)
 		if err != nil {
 			slog.Error("get post failed", "err", err)
+			data := map[string]interface{}{"msg": "没有找到这篇文章，它可能已经被删除或改了地址"}
+			view.AdminRenderStatus(http.StatusNotFound, data, ctx.Writer, "401", h.config.App)
 			return
 		}
 	}
-	categories, _ := h.CategoryRepo.GetCategories()
-	data["categories"] = categories
+	h.renderEditor(ctx, http.StatusOK, post, h.getTags(post), "")
+}
 
+// renderEditor shows the post editor, either for PostAdd or to hand a rejected
+// save back to the author with everything they typed still in place.
+func (h *PostHandler) renderEditor(ctx *gin.Context, status int, post model.Post, tags string, problem string) {
+	data := make(map[string]interface{})
+	categories, _ := h.CategoryRepo.GetCategories()
 	for i := range categories {
 		categories[i].Cur = post.CategoryId
 	}
+	data["categories"] = categories
 	data["id"] = post.Id
 	data["title"] = post.Title
 	data["description"] = post.Description
@@ -111,30 +108,67 @@ func (h *PostHandler) PostAdd(ctx *gin.Context) {
 	data["category_id"] = post.CategoryId
 	data["tag_ids"] = post.TagIds
 	data["identity"] = post.Identity
-	data["tags"] = h.getTags(post)
+	data["tags"] = tags
+	data["error"] = problem
 	data["csrf_token"], _ = ctx.Get("csrf_token")
 
-	view.AdminRender(data, ctx.Writer, "posts/add", h.config.App)
+	// for the editor's hints: addresses that are taken, tags that exist
+	var slugs []string
+	if all, _, err := h.PostRepo.GetPosts(repository.PostParams{Page: 1}); err == nil {
+		for _, p := range all {
+			if p.Id != post.Id {
+				slugs = append(slugs, p.Identity)
+			}
+		}
+	}
+	var tagNames []string
+	if allTags, err := h.TagRepo.GetTags(); err == nil {
+		// most used first: those are the ones worth a tap
+		sort.SliceStable(allTags, func(i, j int) bool { return allTags[i].Count > allTags[j].Count })
+		for _, tag := range allTags {
+			tagNames = append(tagNames, tag.Name)
+		}
+	}
+	data["slugs_json"] = toJSON(slugs)
+	data["all_tags_json"] = toJSON(tagNames)
+
+	view.AdminRenderStatus(status, data, ctx.Writer, "posts/add", h.config.App)
 }
 
 // PostSave 处理文章保存请求
 func (h *PostHandler) PostSave(ctx *gin.Context) {
 	var post model.Post
 	post.Id = ctx.Request.FormValue("id")
-	post.Title = ctx.Request.FormValue("title")
+	post.Title = strings.TrimSpace(ctx.Request.FormValue("title"))
 	post.Description = ctx.Request.FormValue("description")
 	post.Content = ctx.Request.FormValue("content")
 	post.CategoryId, _ = strconv.Atoi(ctx.Request.FormValue("category"))
 	tags := ctx.Request.FormValue("tags")
-	post.Identity = ctx.Request.FormValue("identity")
-	post.TagIds = h.getTagIds(tags)
+	post.Identity = strings.TrimSpace(ctx.Request.FormValue("identity"))
 	post.Status = 1
 
-	_, err := h.PostRepo.PostSave(post)
-	if err != nil {
-		data := make(map[string]interface{})
-		data["msg"] = "添加或修改失败，请重试"
-		view.AdminRender(data, ctx.Writer, "401", h.config.App)
+	// Validate before anything is written. A slug that stays as it is always
+	// passes: a few old posts have addresses the rules below would refuse.
+	problem := ""
+	if post.Title == "" {
+		problem = "请填写标题"
+	} else if post.Id == "" || post.Identity != post.Id {
+		problem = checkSlug(post.Identity)
+		if problem == "" {
+			if _, err := h.PostRepo.GetPost(post.Identity); err == nil {
+				problem = saveErrorMessage(filestore.ErrSlugTaken)
+			}
+		}
+	}
+	if problem != "" {
+		h.renderEditor(ctx, http.StatusUnprocessableEntity, post, tags, problem)
+		return
+	}
+
+	post.TagIds = h.getTagIds(tags)
+	if _, err := h.PostRepo.PostSave(post); err != nil {
+		slog.Error("save post failed", "err", err, "slug", post.Identity)
+		h.renderEditor(ctx, http.StatusUnprocessableEntity, post, tags, saveErrorMessage(err))
 		return
 	}
 	h.feedHandler.GenerateFeedXml()
@@ -143,7 +177,7 @@ func (h *PostHandler) PostSave(ctx *gin.Context) {
 	if err := h.TagRepo.IncrTagCount(""); err != nil {
 		slog.Error("recalc tag counts failed", "err", err)
 	}
-	http.Redirect(ctx.Writer, ctx.Request, "/admin", http.StatusFound)
+	http.Redirect(ctx.Writer, ctx.Request, "/admin?saved="+url.QueryEscape(post.Identity), http.StatusFound)
 }
 
 // PostDelete 处理文章删除请求
@@ -208,17 +242,4 @@ func (h *PostHandler) getTagIds(tags string) (tagIds []int) {
 		}
 	}
 	return
-}
-
-// getPageUrl 生成页面链接
-func (h *PostHandler) getPageUrl(categoryId, tagId, page string) string {
-	params := make([]string, 0)
-	if categoryId != "" {
-		params = append(params, "category_id="+categoryId)
-	}
-	if tagId != "" {
-		params = append(params, "tag_id="+tagId)
-	}
-	params = append(params, "page="+page)
-	return "/admin?" + strings.Join(params, "&")
 }
