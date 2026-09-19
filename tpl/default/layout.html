@@ -39,6 +39,7 @@
             root.className += ' js';
         })();
     </script>
+    <meta name="goblog:search-src" content="{{asset "/static/js/search.js"}}"/>
     <link rel="stylesheet" href="{{asset "/static/css/style.css"}}">
     {{block "head" .}}{{end}}
     <!-- Google tag (gtag.js) -->
@@ -78,13 +79,16 @@
             </nav>
             <form class="header-search" action="/" method="GET" role="search">
                 <label class="sr-only" for="header-search-input">搜索文章</label>
-                <input id="header-search-input" type="search" name="keyword" placeholder="搜索文章…" maxlength="20"
+                <span class="header-search-icon">{{template "icon-search"}}</span>
+                <input id="header-search-input" type="search" name="keyword" placeholder="搜索文章…" maxlength="50"
                        autocomplete="off" enterkeyhint="search" value="{{.keyword}}">
-                <button type="submit" aria-label="搜索">{{template "icon-search"}}</button>
+                <kbd class="header-search-hint" id="header-search-hint" aria-hidden="true"></kbd>
+                <button type="submit" class="sr-only">搜索</button>
             </form>
         </div>
 
         <div class="header-actions">
+            <button type="button" class="icon-btn search-toggle" id="search-toggle" aria-label="搜索">{{template "icon-search"}}</button>
             <a class="icon-btn rss-link" href="/feed.xml" title="RSS 订阅" aria-label="RSS 订阅">{{template "icon-rss"}}</a>
             <button type="button" id="dark-toggle" class="theme-switch" role="switch" aria-checked="false"
                     aria-label="暗色模式">
@@ -113,6 +117,7 @@
             <span>Powered by <a href="https://github.com/whrss9527" rel="noopener">whrss</a></span>
             <span><a href="/feed.xml">RSS</a></span>
             <span><a href="/sitemap.xml">Sitemap</a></span>
+            <span class="footer-shortcuts"><a href="#" id="shortcut-help-link">快捷键 <kbd>?</kbd></a></span>
         </p>
     </div>
 </footer>

@@ -313,6 +313,212 @@
         }, {passive: true});
     }
 
+    /* ---------- Search palette (lazy) ---------- */
+    var searchLoading = null;
+    function openSearch(initial) {
+        if (window.goblogSearch) { window.goblogSearch.open(initial); return; }
+        if (!searchLoading) {
+            var meta = document.querySelector('meta[name="goblog:search-src"]');
+            searchLoading = new Promise(function (resolve, reject) {
+                var s = document.createElement('script');
+                s.src = meta ? meta.content : '/static/js/search.js';
+                s.onload = resolve;
+                s.onerror = reject;
+                document.head.appendChild(s);
+            });
+        }
+        searchLoading.then(function () {
+            if (window.goblogSearch) { window.goblogSearch.open(initial); }
+        }, function () {
+            searchLoading = null;
+            // fall back to the plain search form
+            var field = document.getElementById('header-search-input');
+            if (field) { field.setAttribute('data-plain', '1'); field.focus(); }
+        });
+    }
+
+    function initSearch() {
+        var field = document.getElementById('header-search-input');
+        var toggle = document.getElementById('search-toggle');
+        if (field) {
+            var hint = document.getElementById('header-search-hint');
+            if (hint) { hint.textContent = /Mac|iPhone|iPad/.test(navigator.platform || '') ? '⌘K' : 'Ctrl K'; }
+            // With JS the header field is a launcher for the palette.
+            var launch = function (e) {
+                if (field.getAttribute('data-plain')) { return; }
+                e.preventDefault();
+                field.blur();
+                openSearch(field.value);
+            };
+            field.addEventListener('mousedown', launch);
+            field.addEventListener('focus', launch);
+        }
+        if (toggle) {
+            toggle.addEventListener('click', function () { openSearch(''); });
+        }
+    }
+
+    // Wrap the search keyword in <mark> on the result list.
+    function highlightKeyword() {
+        var keyword;
+        try { keyword = new URLSearchParams(location.search).get('keyword'); } catch (e) { return; }
+        keyword = (keyword || '').trim();
+        if (!keyword) { return; }
+        var terms = keyword.split(/\s+/).filter(Boolean).map(function (t) {
+            return t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        });
+        var re = new RegExp('(' + terms.join('|') + ')', 'gi');
+        each(document.querySelectorAll('.post-title a, .post-desc'), function (el) {
+            var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+            var nodes = [];
+            while (walker.nextNode()) { nodes.push(walker.currentNode); }
+            nodes.forEach(function (node) {
+                var text = node.nodeValue;
+                re.lastIndex = 0;
+                if (!re.test(text)) { return; }
+                var frag = document.createDocumentFragment();
+                var last = 0;
+                text.replace(re, function (m, _g, offset) {
+                    frag.appendChild(document.createTextNode(text.slice(last, offset)));
+                    var mark = document.createElement('mark');
+                    mark.textContent = m;
+                    frag.appendChild(mark);
+                    last = offset + m.length;
+                    return m;
+                });
+                frag.appendChild(document.createTextNode(text.slice(last)));
+                node.parentNode.replaceChild(frag, node);
+            });
+        });
+    }
+
+    /* ---------- Keyboard shortcuts ---------- */
+    var SHORTCUTS = [
+        ['/', '搜索（也可以用 ⌘K / Ctrl K）'],
+        ['j  k', '在文章列表中上下移动'],
+        ['Enter', '打开选中的文章'],
+        ['[  ]', '上一篇 / 下一篇文章'],
+        ['g h', '回到首页'],
+        ['g a', '归档'],
+        ['g t', '标签'],
+        ['g r', '阅读清单'],
+        ['g m', '关于我'],
+        ['r', '随便看看（随机文章）'],
+        ['t', '切换明暗主题'],
+        ['?', '显示 / 关闭这个帮助']
+    ];
+
+    function toggleHelp() {
+        var dialog = document.getElementById('shortcut-help');
+        if (!dialog) {
+            dialog = document.createElement('div');
+            dialog.id = 'shortcut-help';
+            dialog.className = 'modal';
+            dialog.setAttribute('role', 'dialog');
+            dialog.setAttribute('aria-modal', 'true');
+            dialog.setAttribute('aria-label', '键盘快捷键');
+            dialog.hidden = true;
+            dialog.innerHTML = '<div class="modal-backdrop" data-close="1"></div><div class="modal-panel"><div class="modal-head"><h2>键盘快捷键</h2>' +
+                '<button type="button" class="icon-btn" data-close="1" aria-label="关闭">' + ICONS.close + '</button></div><dl class="shortcut-list">' +
+                SHORTCUTS.map(function (row) {
+                    return '<div><dt>' + row[0].split(/\s+/).map(function (k) { return '<kbd>' + k + '</kbd>'; }).join(' ') + '</dt><dd>' + row[1] + '</dd></div>';
+                }).join('') + '</dl></div>';
+            dialog.addEventListener('click', function (e) {
+                if (e.target.closest('[data-close]')) { dialog.hidden = true; }
+            });
+            document.body.appendChild(dialog);
+        }
+        dialog.hidden = !dialog.hidden;
+        if (!dialog.hidden) { dialog.querySelector('button').focus(); }
+    }
+
+    function initShortcuts() {
+        var pendingG = 0;
+        var GOTO = {h: '/', a: '/archive', t: '/tags', r: '/reading', m: '/pages/about'};
+
+        function moveSelection(delta) {
+            var items = document.querySelectorAll('.post-item');
+            if (!items.length) { return false; }
+            var current = document.querySelector('.post-item.is-selected');
+            var idx = Array.prototype.indexOf.call(items, current);
+            idx = current ? Math.min(items.length - 1, Math.max(0, idx + delta)) : (delta > 0 ? 0 : items.length - 1);
+            if (current) { current.classList.remove('is-selected'); }
+            items[idx].classList.add('is-selected');
+            items[idx].scrollIntoView({block: 'center', behavior: 'smooth'});
+            return true;
+        }
+
+        document.addEventListener('keydown', function (e) {
+            if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
+                e.preventDefault();
+                openSearch('');
+                return;
+            }
+            if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.isComposing) { return; }
+            var el = e.target;
+            if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) { return; }
+            // dialogs (lightbox, palette, TOC sheet) own the keyboard while open
+            if (document.querySelector('.lightbox.is-open, .palette.is-open')) { return; }
+
+            var help = document.getElementById('shortcut-help');
+            if (help && !help.hidden) {
+                if (e.key === 'Escape' || e.key === '?') { help.hidden = true; }
+                return;
+            }
+
+            var now = Date.now();
+            if (pendingG && now - pendingG < 1200 && GOTO[e.key]) {
+                pendingG = 0;
+                location.href = GOTO[e.key];
+                return;
+            }
+            pendingG = 0;
+
+            switch (e.key) {
+            case '/':
+                e.preventDefault();
+                openSearch('');
+                break;
+            case '?':
+                toggleHelp();
+                break;
+            case 'g':
+                pendingG = now;
+                break;
+            case 't':
+                toggleTheme();
+                break;
+            case 'r':
+                var m = /^\/posts\/([^/]+)/.exec(location.pathname);
+                location.href = '/random' + (m ? '?from=' + m[1] : '');
+                break;
+            case 'j':
+                moveSelection(1);
+                break;
+            case 'k':
+                moveSelection(-1);
+                break;
+            case 'Enter':
+                var selected = document.querySelector('.post-item.is-selected .post-title a');
+                if (selected) { location.href = selected.href; }
+                break;
+            case '[':
+            case ']':
+                var link = document.querySelector('.post-nav a[rel="' + (e.key === '[' ? 'prev' : 'next') + '"]');
+                if (link) { location.href = link.href; }
+                break;
+            }
+        });
+
+        var helpLink = document.getElementById('shortcut-help-link');
+        if (helpLink) {
+            helpLink.addEventListener('click', function (e) {
+                e.preventDefault();
+                toggleHelp();
+            });
+        }
+    }
+
     // Shared with article.js and page-level scripts.
     window.goblog = {
         icons: ICONS,
@@ -324,7 +530,8 @@
         toast: toast,
         fabStack: fabStack,
         readingRatio: readingRatio,
-        toggleTheme: toggleTheme
+        toggleTheme: toggleTheme,
+        openSearch: openSearch
     };
 
     function init() {
@@ -334,6 +541,9 @@
         initReadingProgress();
         initTitleGimmick();
         initPrefetch();
+        initSearch();
+        initShortcuts();
+        highlightKeyword();
     }
 
     if (document.readyState === 'loading') {

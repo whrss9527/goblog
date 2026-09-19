@@ -1,5 +1,6 @@
 {{define "content"}}
-<div class="container container-narrow">
+<div class="container home-layout">
+<div class="home-main">
     <nav class="chips chips-scroll" aria-label="文章分类">
         <a class="chip{{if and (not .category_id) (not .filter_kind)}} is-active{{end}}" href="/">全部</a>
         {{range .categories}}
@@ -57,5 +58,44 @@
         {{if .filter_kind}}<p><a class="btn" href="/">返回全部文章</a></p>{{end}}
     </div>
     {{end}}
+</div>
+
+{{with .sidebar}}
+<aside class="home-aside" aria-label="发现更多">
+    <section class="widget widget-stats" aria-label="站点统计">
+        <div class="stat"><strong>{{.PostCount}}</strong><span>文章</span></div>
+        <div class="stat"><strong>{{humanCount .WordCount}}</strong><span>字</span></div>
+        <div class="stat"><strong>{{humanCount .ViewCount}}</strong><span>阅读</span></div>
+    </section>
+
+    {{if .HotPosts}}
+    <section class="widget">
+        <h2 class="widget-title">热门文章</h2>
+        <ol class="hot-list">
+            {{range $i, $p := .HotPosts}}
+            <li>
+                <a href="/posts/{{$p.Identity}}">
+                    <span class="hot-rank">{{inc $i}}</span>
+                    <span class="hot-title">{{$p.Title}}</span>
+                    <span class="hot-views">{{humanCount $p.Views}}</span>
+                </a>
+            </li>
+            {{end}}
+        </ol>
+    </section>
+    {{end}}
+
+    {{if .TopTags}}
+    <section class="widget">
+        <h2 class="widget-title">常用标签 <a class="widget-more" href="/tags">全部 {{.TagCount}} 个</a></h2>
+        <div class="widget-tags">
+            {{range .TopTags}}<a class="tag-pill tag-pill-sm" href="/?tag_id={{.Id}}">{{.Name}}<span class="tag-count">{{.Count}}</span></a>{{end}}
+        </div>
+    </section>
+    {{end}}
+
+    <a class="btn btn-block" href="/random">🎲 随便看看</a>
+</aside>
+{{end}}
 </div>
 {{end}}

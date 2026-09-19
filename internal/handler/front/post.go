@@ -138,6 +138,9 @@ func (h *PostHandler) Index(ctx *gin.Context) {
 	}
 
 	data := make(map[string]any)
+	if all, _, err := h.PostRepo.GetPosts(repository.PostParams{Page: 1}); err == nil {
+		data["sidebar"] = buildSidebar(all, tagMap)
+	}
 	data["nav"] = "home"
 	data["filter_kind"] = filterKind
 	data["filter_label"] = filterLabel

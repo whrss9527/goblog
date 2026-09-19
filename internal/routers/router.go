@@ -61,6 +61,7 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 	heatmapHandler.RunTask(repo.Done())
 	postHandler := admin.NewPostHandler(repo, repo, repo, feedHandler, sitemapHandler, server.config)
 	frontPostHandler := front.NewPostHandler(repo, repo, repo, server.config)
+	searchHandler := front.NewSearchHandler(repo, repo, repo)
 	authHandler := admin.NewAuthHandler(repo, server.config)
 	categoryHandler := admin.NewCategoryHandler(repo, server.config)
 	archiveHandler := front.NewArchiveHandler(repo, server.config)
@@ -73,6 +74,7 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 	frontBookHandler := front.NewBookHandler(repo, server.config)
 
 	loginLimiter := middleware.NewRateLimiter(5, 15*time.Minute)
+	searchLimiter := middleware.NewRateLimiter(90, time.Minute)
 
 	router.StaticFS("/static/", http.Dir("static"))
 	// Book covers live in the content repo (data_dir/covers) and are referenced
@@ -112,6 +114,8 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 		client.GET("/", frontPostHandler.Index)
 		client.GET("/favicon.ico", faviconHandler)
 		client.GET("/posts/:identity", frontPostHandler.PostInfo)
+		client.GET("/random", frontPostHandler.Random)
+		client.GET("/api/search", searchLimiter.Limit(), searchHandler.Search)
 		client.GET("/reading", frontBookHandler.ReadingList)
 		client.GET("/pages/:id", frontPageHandler.Page)
 		client.GET("/tags", frontTagHandler.Tag)

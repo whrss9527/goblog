@@ -133,6 +133,23 @@ func recentDate() time.Time {
 	return time.Now().AddDate(0, -1, 0)
 }
 
+func TestRandomRedirect(t *testing.T) {
+	h := newTestServer(t)
+
+	for i := 0; i < 5; i++ {
+		rec := get(t, h, "/random?from=hello")
+		if rec.Code != http.StatusFound {
+			t.Fatalf("status = %d, want 302", rec.Code)
+		}
+		if loc := rec.Header().Get("Location"); loc != "/posts/older" {
+			t.Fatalf("with from=hello the only other published post must be picked, got %q", loc)
+		}
+		if cc := rec.Header().Get("Cache-Control"); cc != "no-store" {
+			t.Errorf("random redirects must not be cached, Cache-Control = %q", cc)
+		}
+	}
+}
+
 func get(t *testing.T, h http.Handler, target string) *httptest.ResponseRecorder {
 	t.Helper()
 	rec := httptest.NewRecorder()
@@ -197,6 +214,20 @@ func TestFrontPages(t *testing.T) {
 		{name: "feed", target: "/feed.xml", wantStatus: http.StatusOK, wantContain: []string{"https://blog.example.com/posts/hello"}, wantAbsent: []string{"Draft"}},
 		{name: "sitemap", target: "/sitemap.xml", wantStatus: http.StatusOK, wantContain: []string{"https://blog.example.com/posts/hello"}},
 		{name: "health", target: "/ping", wantStatus: http.StatusOK},
+		{
+			name: "search API ranks and highlights", target: "/api/search?q=gopher", wantStatus: http.StatusOK,
+			wantContain: []string{`"total":1`, `"url":"/posts/hello"`, `\u003cmark\u003eGopher\u003c/mark\u003e`},
+			wantAbsent:  []string{"Draft"},
+		},
+		{
+			name: "search API with an empty query returns hot posts", target: "/api/search?q=", wantStatus: http.StatusOK,
+			wantContain: []string{`"hot":[`, `"url":"/posts/hello"`},
+			wantAbsent:  []string{"Draft"},
+		},
+		{
+			name: "home sidebar shows stats and hot posts", target: "/", wantStatus: http.StatusOK,
+			wantContain: []string{"热门文章", "常用标签", `class="hot-rank">1<`},
+		},
 	}
 
 	for _, tt := range tests {

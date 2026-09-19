@@ -35,6 +35,7 @@ var funcMap = template.FuncMap{
 		}
 		return template.CSS(fmt.Sprintf("font-size:%dpx", 13+steps*2))
 	},
+	"inc":            func(i int) int { return i + 1 },
 	"asset":          AssetURL,
 	"excerpt":        Excerpt,
 	"readingMinutes": ReadingMinutes,
