@@ -82,7 +82,7 @@ func InitTemplates() {
 		frontTemplates = make(map[string]*template.Template)
 		adminTemplates = make(map[string]*template.Template)
 
-		frontPages := []string{"index", "posts", "tags", "pages", "about", "archive", "reading", "stats", "404", "offline"}
+		frontPages := []string{"index", "posts", "tags", "pages", "about", "archive", "reading", "projects", "stats", "404", "offline"}
 		for _, page := range frontPages {
 			tplPaths := []string{
 				"tpl/default/layout.html",
@@ -90,6 +90,7 @@ func InitTemplates() {
 				"tpl/default/heatmap.html",
 				"tpl/default/icons.html",
 				"tpl/default/markdown.html",
+				"tpl/default/project-card.html",
 			}
 			t, err := template.New("layout.html").Funcs(funcMap).ParseFiles(tplPaths...)
 			if err != nil {
@@ -106,6 +107,7 @@ func InitTemplates() {
 			"categories/list", "categories/add",
 			"tags/list", "tags/edit",
 			"books/list", "books/add",
+			"projects/list", "projects/add",
 		}
 		for _, page := range adminPages {
 			tplPath := "tpl/admin/" + page + ".html"
@@ -139,6 +141,20 @@ func SetSiteSince(t time.Time) {
 	}
 }
 
+// projectCount is the number of projects: the navigation only links to
+// /projects once there is something to show there.
+var projectCount atomic.Int64
+
+// SetProjectCount records how many projects exist.
+func SetProjectCount(n int) {
+	projectCount.Store(int64(n))
+}
+
+// HasProjects reports whether at least one project exists.
+func HasProjects() bool {
+	return projectCount.Load() > 0
+}
+
 func siteDays(now time.Time) int {
 	since := siteSince.Load()
 	if since == 0 {
@@ -164,6 +180,7 @@ func RenderStatus(status int, data map[string]any, w http.ResponseWriter, tpl st
 	now := time.Now()
 	data["year"] = now.Year()
 	data["site_days"] = siteDays(now)
+	data["nav_projects"] = HasProjects()
 	if _, ok := data["title"]; !ok {
 		data["title"] = appConf.Name
 	}

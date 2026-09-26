@@ -27,12 +27,14 @@ type FileRepository struct {
 	pages      []model.Page
 	users      []model.User
 	books      []model.Book
+	projects   []model.Project
 	views      map[string]int
 	likes      map[string]int
 
 	nextCategoryId int
 	nextTagId      int
 	nextBookId     int
+	nextProjectId  int
 
 	gitEnabled bool
 	gitMu      sync.Mutex
@@ -49,6 +51,7 @@ func NewFileRepository(dataDir, gitRepo, gitToken string) (*FileRepository, erro
 		nextCategoryId: 1,
 		nextTagId:      1,
 		nextBookId:     1,
+		nextProjectId:  1,
 		done:           make(chan struct{}),
 	}
 
@@ -156,6 +159,9 @@ func (r *FileRepository) loadAll() error {
 	}
 	if err := r.loadBooks(); err != nil {
 		return fmt.Errorf("load books: %w", err)
+	}
+	if err := r.loadProjects(); err != nil {
+		return fmt.Errorf("load projects: %w", err)
 	}
 	if err := r.loadViews(); err != nil {
 		return fmt.Errorf("load views: %w", err)
@@ -347,6 +353,11 @@ func (r *FileRepository) saveJSON(filename string, v any) error {
 	if err != nil {
 		return err
 	}
+	return r.writeFileAtomic(filename, data)
+}
+
+// writeFileAtomic replaces filename inside dataDir with data (temp file, fsync, rename).
+func (r *FileRepository) writeFileAtomic(filename string, data []byte) error {
 	target := filepath.Join(r.dataDir, filename)
 	tmp, err := os.CreateTemp(r.dataDir, filename+".tmp-*")
 	if err != nil {

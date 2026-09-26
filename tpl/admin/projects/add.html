@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>{{template "admin-head" .}}<title>{{if .project.Id}}编辑项目{{else}}添加项目{{end}} · 后台</title></head>
+{{template "admin-open" .}}
+<div class="admin-page-head">
+    <h1>{{if .project.Id}}编辑项目{{else}}添加项目{{end}}</h1>
+    <a class="btn btn-outline-secondary" href="/admin/projects">返回列表</a>
+</div>
+{{if .error}}<div class="alert alert-danger admin-note" role="alert">{{.error}}</div>{{end}}
+<div class="card admin-form-card">
+    <div class="card-body">
+        <form class="admin-form" id="project-form" action="/admin/projects/save" method="POST"{{if .github_import}} data-import="1"{{end}}>
+            <input type="hidden" name="_csrf" value="{{.csrf_token}}">
+            <input type="hidden" name="id" value="{{if .project.Id}}{{.project.Id}}{{end}}">
+            <div class="mb-3">
+                <label class="form-label" for="project-repo">源码地址</label>
+                <div class="input-group">
+                    <input class="form-control" id="project-repo" type="text" name="repo" inputmode="url" autocomplete="off"
+                           placeholder="https://github.com/用户名/仓库名" value="{{.project.Repo}}">
+                    <button type="button" class="btn btn-outline-secondary" id="github-import">从 GitHub 读取</button>
+                </div>
+                <div class="form-text" id="import-status" aria-live="polite">GitHub 仓库可以一键读取名称、简介、主页、语言和话题（只填空着的项）。私有仓库请留空：访客打不开。</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="project-name">名称 *</label>
+                <input class="form-control" id="project-name" type="text" name="name" value="{{.project.Name}}" maxlength="60" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="project-description">简介</label>
+                <textarea class="form-control" id="project-description" name="description" rows="3" maxlength="300"
+                          placeholder="一两句话：它是什么、解决什么问题">{{.project.Description}}</textarea>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="project-highlights">亮点（可选，每行一条，最多 6 条）</label>
+                <textarea class="form-control" id="project-highlights" name="highlights" rows="3"
+                          placeholder="断网也能用&#10;一个二进制文件部署">{{.highlights}}</textarea>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="project-tech">技术栈（逗号分隔）</label>
+                <input class="form-control" id="project-tech" type="text" name="tech" value="{{.tech}}" placeholder="Go, SwiftUI, SQLite" autocomplete="off">
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="project-url">访问地址（官网 / 演示 / 下载，可选）</label>
+                <input class="form-control" id="project-url" type="text" name="url" inputmode="url" value="{{.project.URL}}" placeholder="https://" autocomplete="off">
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="project-post">介绍文章（可选）</label>
+                <select class="form-select" id="project-post" name="post">
+                    <option value="">（不关联文章）</option>
+                    {{range .posts}}<option value="{{.Slug}}"{{if .Selected}} selected{{end}}>{{.Title}} · {{.Date}}</option>{{end}}
+                </select>
+                <div class="form-text">选上之后，项目卡片会链接到这篇文章，文章末尾也会出现这个项目。</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="project-cover">封面图（可选：截图或 Logo 的地址）</label>
+                <input class="form-control" id="project-cover" type="text" name="cover" inputmode="url" value="{{.project.Cover}}" placeholder="https://… 或 /covers/xxx.png" autocomplete="off">
+                <img id="project-cover-preview" class="admin-cover-preview" alt="" {{if .project.Cover}}src="{{.project.Cover}}"{{else}}hidden{{end}}>
+            </div>
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-md-4">
+                    <label class="form-label" for="project-status">状态</label>
+                    <select class="form-select" id="project-status" name="status">
+                        <option value="1"{{if eq .project.Status 1}} selected{{end}}>进行中</option>
+                        <option value="2"{{if eq .project.Status 2}} selected{{end}}>已完成</option>
+                        <option value="3"{{if eq .project.Status 3}} selected{{end}}>已归档</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-4">
+                    <label class="form-label" for="project-started">开始时间</label>
+                    <input class="form-control" id="project-started" type="month" name="started" value="{{.project.Started}}" placeholder="2026-09">
+                </div>
+                <div class="col-12 col-md-4 d-flex align-items-end">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="project-featured" name="featured" value="1"{{if .project.Featured}} checked{{end}}>
+                        <label class="form-check-label" for="project-featured">精选（排在最前，首页侧栏优先展示）</label>
+                    </div>
+                </div>
+            </div>
+            <div class="admin-form-actions">
+                <button type="submit" class="btn btn-primary">保存</button>
+                <a class="btn btn-link" href="/admin/projects">取消</a>
+            </div>
+        </form>
+    </div>
+</div>
+{{template "admin-close" .}}
+</html>

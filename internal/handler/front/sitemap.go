@@ -13,6 +13,8 @@ import (
 
 type SitemapHandler struct {
 	PostRepo repository.PostRepository
+	// Projects adds /projects once there is at least one project (optional).
+	Projects repository.ProjectRepository
 	host     string
 }
 
@@ -48,6 +50,12 @@ func (h *SitemapHandler) GenerateSitemap() {
 		{Loc: host + "/reading", Changefreq: "weekly", Priority: "0.6"},
 		{Loc: host + "/stats", Changefreq: "weekly", Priority: "0.5"},
 		{Loc: host + "/pages/about", Changefreq: "monthly", Priority: "0.6"},
+	}
+
+	if h.Projects != nil {
+		if projects, err := h.Projects.GetProjects(); err == nil && len(projects) > 0 {
+			urls = append(urls, sitemapURL{Loc: host + "/projects", Changefreq: "weekly", Priority: "0.7"})
+		}
 	}
 
 	for _, post := range posts {

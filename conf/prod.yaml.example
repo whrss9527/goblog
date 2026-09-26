@@ -27,6 +27,13 @@ app:
   # 哈希用 `./goblog -hash-password` 生成（从标准输入读密码）；YAML 里请保留引号。
   admin_email: ""
   admin_password_hash: ""
+  # 项目页（/projects）：GitHub 仓库显示 Star、主要语言、最近提交，服务器每 6 小时读取一次公开数据（只在内存里）。
+  # 默认开启；服务器连不上 GitHub 或不想让它访问外网时改成 false
+  github_stats: true
+  # 后台「GitHub 上最近的仓库」列谁的仓库；留空 = git_repo 的所有者（github.com/<用户名>/...）
+  github_user: ""
+  # 可选：GitHub API 不带 token 每小时 60 次，带 token 5000 次。任何 token 都行（不需要勾选权限）；不要提交真实值
+  github_token: ""
 
 server:
   # 监听地址。留空 = 所有网卡；前面有 nginx / cloudflared（Cloudflare Tunnel）时建议写 "127.0.0.1"，

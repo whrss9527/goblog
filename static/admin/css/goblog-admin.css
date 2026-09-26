@@ -126,6 +126,22 @@ body.admin {
     flex-direction: row;
 }
 
+.admin-suggestions {
+    margin-bottom: 16px;
+}
+
+.admin-suggestions .card-header {
+    font-weight: 600;
+}
+
+.admin-suggestions .card-header small {
+    display: block;
+    margin-top: 2px;
+    color: #6c757d;
+    font-size: 0.8rem;
+    font-weight: 400;
+}
+
 /* ---------- tables ---------- */
 .admin-table {
     width: 100%;

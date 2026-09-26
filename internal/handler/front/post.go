@@ -30,7 +30,9 @@ type PostHandler struct {
 	PostRepo     repository.PostRepository
 	CategoryRepo repository.CategoryRepository
 	TagRepo      repository.TagRepository
-	conf         *config.Config
+	// Projects feeds the home sidebar and the project cards of articles (optional).
+	Projects *ProjectCatalog
+	conf     *config.Config
 }
 
 func NewPostHandler(postRepo repository.PostRepository, categoryRepo repository.CategoryRepository, tagRepository repository.TagRepository, config *config.Config) *PostHandler {
@@ -143,6 +145,10 @@ func (h *PostHandler) Index(ctx *gin.Context) {
 		data["sidebar"] = buildSidebar(all, tagMap)
 		data["on_this_day"] = onThisDay(all, time.Now(), shanghai)
 	}
+	if cards := h.Projects.Cards(); len(cards) > 0 {
+		data["sidebar_projects"] = highlightProjects(cards, sidebarProjects)
+		data["projects_total"] = len(cards)
+	}
 	data["nav"] = "home"
 	data["filter_kind"] = filterKind
 	data["filter_label"] = filterLabel
@@ -220,6 +226,7 @@ func (h *PostHandler) PostInfo(ctx *gin.Context) {
 		data["newer"], data["older"] = neighbours(all, post)
 		data["related"] = relatedPosts(all, post, 4)
 	}
+	data["post_projects"] = h.Projects.ForPost(post.Identity)
 	data["outdated_years"] = outdatedYears(post, category.Name, time.Now())
 	data["liked"] = hasLiked(ctx, post.Identity)
 	if html, ok := renderOnServer(h.conf.App, post.Content); ok {

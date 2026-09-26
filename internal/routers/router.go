@@ -15,7 +15,9 @@ import (
 	"goblog/internal/filestore"
 	"goblog/internal/handler/admin"
 	"goblog/internal/handler/front"
+	"goblog/internal/pkg/github"
 	"goblog/internal/pkg/view"
+	"goblog/internal/repository"
 	"goblog/internal/routers/middleware"
 )
 
@@ -57,11 +59,25 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 	feedHandler := front.NewFeedHandler(repo, server.config.App.Host, server.config.App.Name)
 	feedHandler.GenerateFeedXml()
 	sitemapHandler := front.NewSitemapHandler(repo, server.config.App.Host)
+	sitemapHandler.Projects = repo
 	sitemapHandler.GenerateSitemap()
 	heatmapHandler := admin.NewHeatMapHandler(repo)
 	heatmapHandler.RunTask(repo.Done())
 	postHandler := admin.NewPostHandler(repo, repo, repo, repo, feedHandler, sitemapHandler, server.config)
+	githubClient := github.NewClient(server.config.App.GitHubAPI, server.config.App.GitHubToken)
+	var githubStats *github.Stats // stays nil (no numbers, no requests) when app.github_stats is off
+	if server.config.App.GitHubStatsEnabled() {
+		githubStats = github.NewStats(githubClient)
+		githubStats.Run(repo.Done(), projectRepos(repo), githubStatsInterval)
+	}
+	if projects, err := repo.GetProjects(); err == nil {
+		view.SetProjectCount(len(projects))
+	}
+	projectCatalog := &front.ProjectCatalog{Projects: repo, Posts: repo, Stats: githubStats}
 	frontPostHandler := front.NewPostHandler(repo, repo, repo, server.config)
+	frontPostHandler.Projects = projectCatalog
+	frontProjectHandler := front.NewProjectHandler(projectCatalog, server.config)
+	projectHandler := admin.NewProjectHandler(repo, repo, githubClient, githubStats, sitemapHandler, server.config)
 	searchHandler := front.NewSearchHandler(repo, repo, repo)
 	statsHandler := front.NewStatsHandler(repo, repo, repo, repo, server.config)
 	pwaHandler := front.NewPWAHandler(server.config)
@@ -118,6 +134,12 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 		manage.GET("/tags/edit", tagHandler.TagEdit)
 		manage.POST("/tags/save", tagHandler.TagSave)
 		manage.POST("/tags/delete", tagHandler.TagDelete)
+		manage.GET("/projects", projectHandler.ProjectList)
+		manage.GET("/projects/add", projectHandler.ProjectAdd)
+		manage.POST("/projects/save", projectHandler.ProjectSave)
+		manage.POST("/projects/delete/:id", projectHandler.ProjectDelete)
+		manage.GET("/projects/github", projectHandler.GitHubRepo)
+		manage.GET("/projects/github/suggestions", projectHandler.GitHubSuggestions)
 		manage.GET("/books", bookHandler.BookList)
 		manage.GET("/books/add", bookHandler.BookAdd)
 		manage.POST("/books/save", bookHandler.BookSave)
@@ -132,6 +154,7 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 		client.GET("/api/search", searchLimiter.Limit(), searchHandler.Search)
 		client.POST("/api/posts/:identity/like", likeLimiter.Limit(), frontPostHandler.Like)
 		client.GET("/reading", frontBookHandler.ReadingList)
+		client.GET("/projects", frontProjectHandler.Projects)
 		client.GET("/pages/:id", frontPageHandler.Page)
 		client.GET("/tags", frontTagHandler.Tag)
 		client.GET("/archive", archiveHandler.Archive)
@@ -146,4 +169,24 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 		client.GET("/offline", pwaHandler.Offline)
 	}
 	return func() { repo.Close() }
+}
+
+// githubStatsInterval is how often the numbers of the projects' repositories are refreshed.
+const githubStatsInterval = 6 * time.Hour
+
+// projectRepos lists the source addresses of all projects, for the GitHub numbers.
+func projectRepos(projects repository.ProjectRepository) func() []string {
+	return func() []string {
+		list, err := projects.GetProjects()
+		if err != nil {
+			return nil
+		}
+		repos := make([]string, 0, len(list))
+		for _, p := range list {
+			if p.Repo != "" {
+				repos = append(repos, p.Repo)
+			}
+		}
+		return repos
+	}
 }

@@ -87,3 +87,13 @@ type BookRepository interface {
 	BookSave(book model.Book) (int, error)
 	BookDelete(id int) error
 }
+
+// ProjectRepository stores the projects shown on /projects (projects.json).
+type ProjectRepository interface {
+	// GetProjects returns every project in display order: featured first, archived last, newest first.
+	GetProjects() ([]model.Project, error)
+	GetProject(id int) (model.Project, error)
+	// ProjectSave creates the project (Id 0 or unknown) or replaces it, and returns its id.
+	ProjectSave(project model.Project) (int, error)
+	ProjectDelete(id int) error
+}

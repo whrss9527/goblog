@@ -122,6 +122,8 @@ func newTestServer(t *testing.T, options ...func(*config.Config)) http.Handler {
 			Cdn:           "/static",
 			SessionSecret: "test-secret",
 			DataDir:       dataDir,
+			// nothing listens there: tests never reach the real GitHub (see fakeGitHub)
+			GitHubAPI: "http://127.0.0.1:1",
 		},
 		Server: &config.ServerConfig{HttpPort: 0},
 	}

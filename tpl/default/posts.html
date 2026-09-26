@@ -40,6 +40,13 @@
             {{end}}
         </article>
 
+        {{with .post_projects}}
+        <section class="post-projects" aria-labelledby="post-projects-title">
+            <h2 class="section-title" id="post-projects-title">{{template "icon-package"}}文中的项目</h2>
+            {{range .}}{{template "project-card" dict "p" . "inArticle" true}}{{end}}
+        </section>
+        {{end}}
+
         {{if not .preview}}
         <footer class="article-footer">
             <div class="article-license">

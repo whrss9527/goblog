@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>{{template "admin-head" .}}<title>项目 · 后台</title></head>
+{{template "admin-open" .}}
+<div class="admin-page-head">
+    <h1>项目 <small>{{len .projects}} 个</small></h1>
+    <a class="btn btn-primary" href="/admin/projects/add">添加项目</a>
+</div>
+{{if .error}}<div class="alert alert-danger admin-note" role="alert">{{.error}}</div>{{end}}
+{{if eq .done "saved"}}<div class="alert alert-success admin-note" role="status">已保存「{{.done_name}}」，<a href="/projects" target="_blank" rel="noopener">项目页</a>已经更新。</div>
+{{else if eq .done "deleted"}}<div class="alert alert-success admin-note" role="status">已删除「{{.done_name}}」。</div>{{end}}
+<p class="admin-hint">项目显示在前台的 <a href="/projects" target="_blank" rel="noopener">/projects</a>（有项目之后导航栏会出现「项目」），
+    保存在内容仓库的 <code>projects.json</code>。精选的项目排在最前面，也会出现在首页侧栏。</p>
+
+{{if .github_user}}
+<div class="card admin-suggestions" id="github-suggestions" data-user="{{.github_user}}">
+    <div class="card-header">GitHub 上最近的仓库 <small>@{{.github_user}} · 还没加进来的公开仓库，点「添加」自动读取名称、简介和技术栈</small></div>
+    <ul class="list-group list-group-flush" id="suggestion-list" aria-live="polite">
+        <li class="list-group-item admin-hint" id="suggestion-status">正在读取…</li>
+    </ul>
+</div>
+{{end}}
+
+<div class="card">
+    <div class="card-body">
+        <table id="datatablesSimple" class="admin-table" data-per-page="20">
+            <thead>
+            <tr>
+                <th>名称</th>
+                <th>状态</th>
+                <th class="col-md">技术栈</th>
+                <th class="col-md">开始</th>
+                <th data-sortable="false">操作</th>
+            </tr>
+            </thead>
+            <tbody>
+            {{range .projects}}
+            <tr>
+                <td>
+                    <a class="admin-title" href="/admin/projects/add?id={{.Id}}">{{.Name}}</a>
+                    {{with .Repo}}<a class="admin-sub" href="{{.}}" target="_blank" rel="noopener">{{.}}</a>{{end}}
+                </td>
+                <td class="admin-nowrap">
+                    {{if eq .Status 2}}<span class="badge bg-primary">已完成</span>{{else if eq .Status 3}}<span class="badge bg-secondary">已归档</span>{{else}}<span class="badge bg-success">进行中</span>{{end}}
+                    {{if .Featured}}<span class="badge bg-warning text-dark">精选</span>{{end}}
+                </td>
+                <td class="col-md">{{range $i, $t := .Tech}}{{if $i}}, {{end}}{{$t}}{{end}}</td>
+                <td class="col-md admin-nowrap">{{.Started}}</td>
+                <td>{{template "admin-row-actions" dict "edit" (printf "/admin/projects/add?id=%d" .Id) "action" (printf "/admin/projects/delete/%d" .Id) "csrf" $.csrf_token "what" .Name "consequence" "只会从项目页移除，仓库和文章不受影响。"}}</td>
+            </tr>
+            {{end}}
+            </tbody>
+        </table>
+    </div>
+</div>
+{{template "admin-close" .}}
+</html>

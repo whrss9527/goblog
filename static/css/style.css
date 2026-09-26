@@ -2612,6 +2612,287 @@ ol.linenums {
     line-height: 1.6;
 }
 
+/* ---------- 9b. Projects ---------- */
+.project-filter {
+    justify-content: center;
+}
+
+/* filtering needs JavaScript; without it every project is simply listed */
+html:not(.js) .project-filter {
+    display: none;
+}
+
+.project-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+    gap: 16px;
+}
+
+.project-card {
+    --card-pad: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+    padding: var(--card-pad);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-elev);
+    transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+
+.project-card.is-featured {
+    box-shadow: inset 0 3px 0 var(--accent);
+}
+
+/* /projects#project-goblog: point at the card that was linked to */
+.project-card:target {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.project-cover {
+    display: block;
+    width: calc(100% + var(--card-pad) * 2);
+    max-width: none;
+    height: auto;
+    aspect-ratio: 2 / 1;
+    margin: calc(var(--card-pad) * -1) calc(var(--card-pad) * -1) 2px;
+    border-bottom: 1px solid var(--border);
+    border-radius: var(--radius) var(--radius) 0 0;
+    background: var(--bg-soft);
+    object-fit: cover;
+}
+
+.project-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+}
+
+.project-name {
+    margin-right: auto;
+    color: var(--text);
+    font-size: 18px;
+    font-weight: 650;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.project-name a {
+    color: inherit;
+    transition: color 0.15s ease;
+}
+
+.status-archived .project-name {
+    color: var(--text-2);
+}
+
+.project-featured {
+    margin: 0;
+    vertical-align: 0;
+}
+
+.project-status {
+    flex: none;
+    padding: 1px 9px;
+    border-radius: 10px;
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.6;
+}
+
+.status-active .project-status { background: #e8f5e9; color: #2e7d32; }
+.status-done .project-status { background: #e3f2fd; color: #1565c0; }
+.status-archived .project-status { background: var(--bg-soft); color: var(--text-3); box-shadow: inset 0 0 0 1px var(--border); }
+
+[data-theme="dark"] .status-active .project-status { background: rgba(46, 204, 113, 0.16); color: #6ee7a0; }
+[data-theme="dark"] .status-done .project-status { background: rgba(108, 182, 255, 0.16); color: #8cc8ff; }
+
+.project-desc {
+    margin: 0;
+    color: var(--text-2);
+    font-size: 14.5px;
+    line-height: 1.75;
+}
+
+.project-highlights {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--text-2);
+    font-size: 13.5px;
+    line-height: 1.65;
+}
+
+.project-highlights li {
+    position: relative;
+    padding-left: 15px;
+}
+
+.project-highlights li + li {
+    margin-top: 2px;
+}
+
+.project-highlights li::before {
+    content: "";
+    position: absolute;
+    top: 0.7em;
+    left: 2px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+}
+
+.project-stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.project-stack li {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 9px;
+    border-radius: 999px;
+    background: var(--code-inline-bg);
+    color: var(--text-2);
+    font-size: 12.5px;
+    line-height: 1.8;
+}
+
+/* languages get GitHub's colour dot */
+.project-stack li.is-lang::before,
+.wp-lang[style]::before {
+    content: "";
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--lang);
+}
+
+.project-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 14px;
+    margin: 0;
+    color: var(--text-3);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* numbers and buttons line up at the bottom of a row of cards */
+.project-foot {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: auto;
+    padding-top: 2px;
+}
+
+.project-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.project-links .btn-sm {
+    min-height: 32px;
+    padding: 3px 12px;
+    font-size: 13px;
+}
+
+/* home sidebar */
+.widget-project-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.widget-project-list li + li {
+    border-top: 1px solid var(--border);
+}
+
+.widget-project-list a {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 9px 0;
+}
+
+.widget-project-list li:first-child a {
+    padding-top: 0;
+}
+
+.widget-project-list li:last-child a {
+    padding-bottom: 0;
+}
+
+.wp-name {
+    color: var(--text);
+    font-size: 14.5px;
+    font-weight: 600;
+    line-height: 1.5;
+    transition: color 0.15s ease;
+}
+
+.wp-desc {
+    color: var(--text-3);
+    font-size: 13px;
+    line-height: 1.55;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+}
+
+.wp-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 2px;
+    color: var(--text-3);
+    font-size: 12px;
+}
+
+.wp-lang {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* article: the project(s) a post introduces */
+.post-projects {
+    margin-top: 36px;
+}
+
+.post-projects .section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.post-projects .section-title .icon {
+    color: var(--accent);
+}
+
+.post-projects .project-card + .project-card {
+    margin-top: 12px;
+}
+
+@media (max-width: 640px) {
+    .project-card {
+        --card-pad: 16px;
+    }
+}
+
 /* ---------- 10. 404 ---------- */
 .notfound {
     padding: 64px 0;
@@ -3176,6 +3457,9 @@ html:not(.js) .js-only {
     .archive-post-item:hover::before { background: var(--accent); transform: scale(1.2); }
     .tag-pill:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
     .book-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); border-color: var(--border-strong); }
+    .project-card:hover { box-shadow: var(--shadow-md); border-color: var(--border-strong); }
+    .project-card.is-featured:hover { box-shadow: inset 0 3px 0 var(--accent), var(--shadow-md); }
+    .project-name a:hover, .widget-project-list a:hover .wp-name { color: var(--accent); }
     .gh-heatmap-cell:hover { outline: 1.5px solid var(--text-2); outline-offset: -0.5px; }
 }
 
@@ -3204,7 +3488,8 @@ html:not(.js) .js-only {
     .home-aside {
         display: block;
         position: sticky;
-        top: calc(var(--header-h) + 24px);
+        /* enhance.js lowers this when the column is taller than the window */
+        top: var(--aside-top, calc(var(--header-h) + 24px));
     }
 
     .article-layout.has-toc {

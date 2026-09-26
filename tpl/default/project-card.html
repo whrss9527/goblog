@@ -1,0 +1,53 @@
+{{/*
+  One project as a card (front.ProjectCard). Used by /projects and by the
+  articles that introduce a project.
+
+  Usage: {{template "project-card" dict "p" . "inArticle" false}}
+  inArticle: inside an article — no element id, a level-3 heading, no link back to the article.
+*/}}
+{{define "project-card"}}{{$p := .p}}{{$inArticle := .inArticle}}
+<article class="project-card status-{{$p.StatusClass}}{{if $p.Featured}} is-featured{{end}}"{{if not $inArticle}} id="{{$p.Anchor}}"{{end}} data-status="{{$p.Status}}">
+    {{if and $p.Cover (not $inArticle)}}
+    <img class="project-cover" src="{{$p.Cover}}" alt="" width="640" height="320" loading="lazy" decoding="async" onerror="this.remove()">
+    {{end}}
+    <header class="project-head">
+        {{if $inArticle}}<h3 class="project-name">{{else}}<h2 class="project-name">{{end}}
+            {{- if $p.Link}}<a href="{{$p.Link}}">{{$p.Name}}</a>{{else}}{{$p.Name}}{{end -}}
+        {{if $inArticle}}</h3>{{else}}</h2>{{end}}
+        {{if $p.Featured}}<span class="badge-top project-featured">精选</span>{{end}}
+        <span class="project-status">{{$p.StatusLabel}}</span>
+    </header>
+    {{with $p.Description}}<p class="project-desc">{{.}}</p>{{end}}
+    {{with $p.Highlights}}
+    <ul class="project-highlights">
+        {{range .}}<li>{{.}}</li>{{end}}
+    </ul>
+    {{end}}
+    {{with $p.Stack}}
+    <ul class="project-stack" aria-label="技术栈">
+        {{range .}}<li{{if .Color}} class="is-lang" style="--lang: {{.Color}}"{{end}}>{{.Name}}</li>{{end}}
+    </ul>
+    {{end}}
+    {{if or $p.HasStats $p.StartedLabel $p.RepoURL $p.URL (and $p.PostTitle (not $inArticle))}}
+    <footer class="project-foot">
+        {{if or $p.HasStats $p.StartedLabel}}
+        <p class="project-meta">
+            {{if $p.HasStats}}
+            <span class="meta-item" title="{{$p.Stars}} 个 Star">{{template "icon-star"}}{{humanCount $p.Stars}}</span>
+            {{if $p.Forks}}<span class="meta-item" title="{{$p.Forks}} 个 Fork">{{template "icon-fork"}}{{humanCount $p.Forks}}</span>{{end}}
+            {{with $p.PushedLabel}}<span class="meta-item" title="最近一次提交：{{$p.PushedAt.Format "2006-01-02 15:04"}}">{{.}}更新</span>{{end}}
+            {{end}}
+            {{with $p.StartedLabel}}<span class="meta-item">始于 {{.}}</span>{{end}}
+        </p>
+        {{end}}
+        {{if or $p.RepoURL $p.URL (and $p.PostTitle (not $inArticle))}}
+        <div class="project-links">
+            {{if $p.RepoURL}}<a class="btn btn-sm" href="{{$p.RepoURL}}" aria-label="{{$p.Name}} 的源码（{{$p.RepoLabel}}）">{{if eq $p.RepoLabel "GitHub"}}{{template "icon-github"}}{{else}}{{template "icon-code"}}{{end}}{{$p.RepoLabel}}</a>{{end}}
+            {{if $p.URL}}<a class="btn btn-sm" href="{{$p.URL}}" aria-label="访问 {{$p.Name}}">{{template "icon-external"}}访问</a>{{end}}
+            {{if and $p.PostTitle (not $inArticle)}}<a class="btn btn-sm" href="/posts/{{$p.Post}}" title="{{$p.PostTitle}}" aria-label="{{$p.Name}} 的介绍文章：{{$p.PostTitle}}">{{template "icon-file"}}介绍文章</a>{{end}}
+        </div>
+        {{end}}
+    </footer>
+    {{end}}
+</article>
+{{end}}

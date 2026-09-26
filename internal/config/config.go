@@ -49,6 +49,18 @@ type (
 		// business being downloadable.
 		AdminEmail        string `mapstructure:"admin_email"`
 		AdminPasswordHash string `mapstructure:"admin_password_hash"`
+		// GitHubStats makes /projects show the stars, language and last push of
+		// the projects' GitHub repositories (fetched in the background every few
+		// hours, public data only). Unset means on.
+		GitHubStats *bool `mapstructure:"github_stats"`
+		// GitHubUser is the account whose recent repositories the admin offers
+		// to add as projects; empty means the owner of git_repo.
+		GitHubUser string `mapstructure:"github_user"`
+		// GitHubToken is optional: it raises the API limit from 60 to 5000
+		// requests an hour. Any token works; it needs no permissions.
+		GitHubToken string `mapstructure:"github_token"`
+		// GitHubAPI is the API address, for GitHub Enterprise (and tests).
+		GitHubAPI string `mapstructure:"github_api"`
 	}
 	ServerConfig struct {
 		// Host is the address to listen on. Empty (the default) means every interface; "127.0.0.1" keeps
@@ -91,6 +103,11 @@ func (c *AppConfig) AccountInContentRepo() bool {
 // PWAEnabled reports whether the site should offer its service worker.
 func (c *AppConfig) PWAEnabled() bool {
 	return c == nil || c.PWA == nil || *c.PWA
+}
+
+// GitHubStatsEnabled reports whether project pages show live repository numbers.
+func (c *AppConfig) GitHubStatsEnabled() bool {
+	return c == nil || c.GitHubStats == nil || *c.GitHubStats
 }
 
 func LoadConfig(config string) *Config {

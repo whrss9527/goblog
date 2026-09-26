@@ -401,6 +401,7 @@
         ['g h', '回到首页'],
         ['g a', '归档'],
         ['g t', '标签'],
+        ['g p', '项目'],
         ['g r', '阅读清单'],
         ['g m', '关于我'],
         ['g s', '博客数据统计'],
@@ -408,6 +409,9 @@
         ['t', '切换明暗主题'],
         ['?', '显示 / 关闭这个帮助']
     ];
+
+    // "项目" only exists once the blog has projects (the navigation says so)
+    var hasProjects = !!document.querySelector('.site-nav a[href="/projects"]');
 
     function toggleHelp() {
         var dialog = document.getElementById('shortcut-help');
@@ -421,7 +425,7 @@
             dialog.hidden = true;
             dialog.innerHTML = '<div class="modal-backdrop" data-close="1"></div><div class="modal-panel"><div class="modal-head"><h2>键盘快捷键</h2>' +
                 '<button type="button" class="icon-btn" data-close="1" aria-label="关闭">' + ICONS.close + '</button></div><dl class="shortcut-list">' +
-                SHORTCUTS.map(function (row) {
+                SHORTCUTS.filter(function (row) { return hasProjects || row[0] !== 'g p'; }).map(function (row) {
                     return '<div><dt>' + row[0].split(/\s+/).map(function (k) { return '<kbd>' + k + '</kbd>'; }).join(' ') + '</dt><dd>' + row[1] + '</dd></div>';
                 }).join('') + '</dl></div>';
             dialog.addEventListener('click', function (e) {
@@ -436,6 +440,7 @@
     function initShortcuts() {
         var pendingG = 0;
         var GOTO = {h: '/', a: '/archive', t: '/tags', r: '/reading', m: '/pages/about', s: '/stats'};
+        if (hasProjects) { GOTO.p = '/projects'; }
 
         function moveSelection(delta) {
             var items = document.querySelectorAll('.post-item');
@@ -663,6 +668,24 @@
         });
     }
 
+    /* ---------- Home sidebar ---------- */
+    // The sidebar sticks below the header. A sidebar taller than the window would
+    // then never show its end, so it scrolls along until its bottom is in view and
+    // sticks there instead.
+    function initAside() {
+        var aside = document.querySelector('.home-aside');
+        if (!aside) { return; }
+        var header = document.getElementById('site-header');
+        function update() {
+            var offset = (header ? header.offsetHeight : 60) + 24;
+            var top = Math.min(offset, window.innerHeight - aside.offsetHeight - 24);
+            aside.style.setProperty('--aside-top', top + 'px');
+        }
+        update();
+        window.addEventListener('resize', update);
+        if (window.ResizeObserver) { new ResizeObserver(update).observe(aside); }
+    }
+
     // Shared with article.js and page-level scripts.
     window.goblog = {
         icons: ICONS,
@@ -688,6 +711,7 @@
         initPrefetch();
         initSearch();
         initShortcuts();
+        initAside();
         highlightKeyword();
         initEasterEggs();
         initPWA();

@@ -97,6 +97,9 @@
                 <a href="/"{{if eq .nav "home"}} aria-current="page"{{end}}>首页</a>
                 <a href="/archive"{{if eq .nav "archive"}} aria-current="page"{{end}}>归档</a>
                 <a href="/tags"{{if eq .nav "tags"}} aria-current="page"{{end}}>标签</a>
+                {{- if .nav_projects}}
+                <a href="/projects"{{if eq .nav "projects"}} aria-current="page"{{end}}>项目</a>
+                {{- end}}
                 <a href="/reading"{{if eq .nav "reading"}} aria-current="page"{{end}}>阅读</a>
                 <a href="/pages/about"{{if eq .nav "about"}} aria-current="page"{{end}}>关于</a>
             </nav>

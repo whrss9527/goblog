@@ -92,7 +92,9 @@
                 rec.map(function (q) { return '<button type="button" class="chip palette-recent">' + esc(q) + '</button>'; }).join('') + '</div></div>';
         }
         html += '<div class="palette-section"><div class="palette-section-title">快速前往</div><div class="palette-chips">' +
-            '<a class="chip" href="/random">🎲 随便看看</a><a class="chip" href="/archive">归档</a><a class="chip" href="/tags">标签</a><a class="chip" href="/reading">阅读清单</a></div></div>';
+            '<a class="chip" href="/random">🎲 随便看看</a><a class="chip" href="/archive">归档</a><a class="chip" href="/tags">标签</a>' +
+            (document.querySelector('.site-nav a[href="/projects"]') ? '<a class="chip" href="/projects">项目</a>' : '') +
+            '<a class="chip" href="/reading">阅读清单</a></div></div>';
         if (hot && hot.length) {
             html += '<div class="palette-section"><div class="palette-section-title">热门文章</div>' +
                 hot.map(function (item, i) { return itemHTML(item, i); }).join('') + '</div>';

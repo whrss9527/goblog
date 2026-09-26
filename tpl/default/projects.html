@@ -1,0 +1,57 @@
+{{define "content"}}
+<div class="container container-narrow">
+    <header class="page-header text-center">
+        <h1>项目</h1>
+        {{if .projects}}
+        <p class="page-sub">
+            <span>共 {{.counts.Total}} 个</span>
+            {{- if .counts.Active}}<span>进行中 {{.counts.Active}} 个</span>{{end}}
+            {{- if .counts.Stars}}<span>GitHub Star {{humanCount .counts.Stars}}</span>{{end}}
+        </p>
+        {{end}}
+    </header>
+
+    {{if gt .counts.Statuses 1}}
+    <div class="chips project-filter" role="group" aria-label="按状态筛选">
+        <button type="button" class="chip is-active" data-filter="all" aria-pressed="true">全部<small>{{.counts.Total}}</small></button>
+        {{if .counts.Active}}<button type="button" class="chip" data-filter="1" aria-pressed="false">进行中<small>{{.counts.Active}}</small></button>{{end}}
+        {{if .counts.Done}}<button type="button" class="chip" data-filter="2" aria-pressed="false">已完成<small>{{.counts.Done}}</small></button>{{end}}
+        {{if .counts.Archived}}<button type="button" class="chip" data-filter="3" aria-pressed="false">已归档<small>{{.counts.Archived}}</small></button>{{end}}
+    </div>
+    {{end}}
+
+    {{if .projects}}
+    <div class="project-grid">
+        {{range .projects}}{{template "project-card" dict "p" . "inArticle" false}}{{end}}
+    </div>
+    {{else}}
+    <div class="empty-state">
+        <h2>这里还没有项目</h2>
+        <p>做好的东西会陆续放到这里，过段时间再来看看吧。</p>
+    </div>
+    {{end}}
+</div>
+{{end}}
+
+{{define "scripts"}}
+{{if gt .counts.Statuses 1}}
+<script>
+(function () {
+    var buttons = document.querySelectorAll('.project-filter .chip');
+    Array.prototype.forEach.call(buttons, function (btn) {
+        btn.addEventListener('click', function () {
+            var status = btn.getAttribute('data-filter');
+            Array.prototype.forEach.call(buttons, function (b) {
+                var on = b === btn;
+                b.classList.toggle('is-active', on);
+                b.setAttribute('aria-pressed', on ? 'true' : 'false');
+            });
+            Array.prototype.forEach.call(document.querySelectorAll('.project-grid .project-card'), function (card) {
+                card.hidden = status !== 'all' && card.getAttribute('data-status') !== status;
+            });
+        });
+    });
+})();
+</script>
+{{end}}
+{{end}}

@@ -74,6 +74,15 @@ The Gin engine is initialized in `internal/pkg/gin/gin.go` (CORS, error handling
   New files a page needs offline must be added to `precachedAssets`.
 - **Analytics**: the Google tag in `tpl/default/layout.html` is injected by a script that skips `localhost`, private
   IPv4 ranges and `*.local`, so previews and development never reach the statistics.
+- **Projects**: `projects.json` (`filestore/project.go`, `repository.ProjectRepository`; written readable — no HTML
+  escaping, trailing newline — and normalised on load) is shown at `/projects`, in the home sidebar and as "文中的项目"
+  under the post named by a project's `post`. `front.ProjectCatalog` joins projects with their linked posts and live
+  GitHub numbers into `ProjectCard`s (`tpl/default/project-card.html`, parsed with every front page).
+  `internal/pkg/github` is a read-only REST client (`ParseRepo`, `Repo`, `UserRepos`) plus `Stats`, an in-memory cache
+  refreshed every 6 hours (ETag requests, pauses on rate limits, `Kick` after admin saves); `app.github_stats: false`
+  leaves it nil — no numbers, no requests. The nav only links to `/projects` while `view.HasProjects()` (set at startup
+  and after every admin change). Tests never reach GitHub: `newTestServer` sets `app.github_api` to an unreachable
+  address and project tests use `fakeGitHub`.
 - **Counters**: view counts (`views.json`) and likes (`likes.json`) live in memory, are flushed to the data dir every 5 minutes and committed/pushed hourly. Both are keyed by post slug and migrate on slug rename.
 - **JSON API**: `GET /api/search?q=` (instant search), `POST /api/posts/:identity/like`; both are rate limited per IP via `middleware.NewRateLimiter`. `GET /random` redirects to a random post.
 - **Cron jobs**: Heatmap data aggregation runs hourly via `robfig/cron`, writing `heatmap.txt`.
@@ -93,7 +102,7 @@ The Gin engine is initialized in `internal/pkg/gin/gin.go` (CORS, error handling
   articles load just `article.js` + prettify (`article-scripts`). Bootstrap is used by the admin only.
 - Reference local assets through `{{asset "/static/..."}}` so they get a content fingerprint.
   Files that also live on the external CDN (`app.cdn`) keep using `{{.cdn}}/...`.
-- Every handler should set `data["nav"]` (`home|archive|tags|reading|about`) for the active nav item. Keys the
+- Every handler should set `data["nav"]` (`home|archive|tags|projects|reading|about`) for the active nav item. Keys the
   layout prints unconditionally need a default in `view.RenderStatus`, otherwise html/template prints `<no value>`.
 - Release flow: bump `internal/version/version.go`, add a section to `CHANGELOG.md`, one commit per version.
 
@@ -128,6 +137,10 @@ The Gin engine is initialized in `internal/pkg/gin/gin.go` (CORS, error handling
   git-backed data dir (`accountInContentRepo`); `_partials.html` shows it on every list / form page.
 - `model.Tag` / `Category` / `User` carry JSON names matching the migrated data files; do not remove them, or the
   next save rewrites the files with Go field names and drops the timestamps.
+- **Projects admin** (`admin/project.go`): `checkProject` holds the rules (http(s) addresses only, the introducing post
+  must be published, one project per repository); `GET /admin/projects/github?repo=` (import) and
+  `/admin/projects/github/suggestions` (the recent public repositories of `app.github_user`, else the owner of `git_repo`)
+  return JSON for `goblog-admin.js`, which only fills fields that are still empty.
 - The editor keeps a local backup in `localStorage` (`goblog:draft:<kind>:<id|new>`); a successful save redirects to
   the list with `?saved=<slug>`, which is what clears the draft.
 

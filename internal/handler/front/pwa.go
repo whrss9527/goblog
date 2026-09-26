@@ -76,11 +76,7 @@ func (h *PWAHandler) Manifest(ctx *gin.Context) {
 			icon("icon-512.png", "512x512", "any"),
 			icon("icon-512.png", "512x512", "maskable"),
 		},
-		"shortcuts": []map[string]any{
-			{"name": "归档", "url": "/archive"},
-			{"name": "随便看看", "url": "/random"},
-			{"name": "博客数据", "url": "/stats"},
-		},
+		"shortcuts": shortcuts(),
 	}
 	if app.Description != "" {
 		manifest["description"] = app.Description
@@ -93,6 +89,15 @@ func (h *PWAHandler) Manifest(ctx *gin.Context) {
 	}
 	ctx.Header("Cache-Control", "public, max-age=3600")
 	ctx.Data(http.StatusOK, "application/manifest+json; charset=utf-8", raw)
+}
+
+// shortcuts are the jump list of the installed app (long press / right click on its icon).
+func shortcuts() []map[string]any {
+	list := []map[string]any{{"name": "归档", "url": "/archive"}}
+	if view.HasProjects() {
+		list = append(list, map[string]any{"name": "项目", "url": "/projects"})
+	}
+	return append(list, map[string]any{"name": "随便看看", "url": "/random"}, map[string]any{"name": "博客数据", "url": "/stats"})
 }
 
 // shortName keeps the home screen label within the ~12 characters launchers show.

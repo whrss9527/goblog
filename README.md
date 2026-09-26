@@ -5,10 +5,12 @@
 ## 特性
 
 - **文件存储**：博客内容（文章、分类、标签、页面）以 Markdown 文件形式存放在独立的 Git 仓库中（`blog-data`），运行时按需克隆/拉取，无需数据库。
-- **管理后台**：登录后可对文章、页面、分类、标签、阅读清单做增删改查；admin 操作通过 session cookie 鉴权。
+- **管理后台**：登录后可对文章、页面、项目、分类、标签、阅读清单做增删改查；admin 操作通过 session cookie 鉴权。
   手机上同样可用；编辑器会在浏览器本地自动保留草稿（关页、登录过期、保存失败都不丢稿），保存前校验文章地址，不会覆盖别的文章。
   标签可以改名、合并（改成另一个标签的名字）、删除，文章里的引用自动跟着变；还有文章在用的分类不允许删除。
-- **公开前台**：首页、文章页、标签页、分类页、阅读清单、关于页、站内搜索（基于内存索引）。
+- **公开前台**：首页、文章页、标签页、分类页、项目、阅读清单、关于页、站内搜索（基于内存索引）。
+- **项目展示**：`/projects` 以卡片展示自己做的项目（简介、亮点、技术栈、源码 / 访问地址、介绍文章），
+  GitHub 仓库自动显示 Star、主要语言和最近提交；后台粘贴仓库地址即可一键读取，还会列出 GitHub 上最近还没加进来的仓库。
 - **RSS / Atom**：启动时生成 `/feed.xml`。
 - **Sitemap**：`/sitemap.xml`。
 - **评论**：基于 [giscus](https://giscus.app/) GitHub Discussions 评论组件（滚动到附近才加载）。
@@ -124,9 +126,9 @@ systemctl status goblog
 cd /opt/goblog && git pull && make build && systemctl restart goblog
 ```
 
-## 从 1.0 升级到 1.10
+## 从 1.0 升级到 1.11
 
-1.1 ～ 1.10 没有破坏性变更：配置文件不改也能启动，内容仓库的文件格式保持不变。照常发版即可：
+1.1 ～ 1.11 没有破坏性变更：配置文件不改也能启动，内容仓库的文件格式保持不变。照常发版即可：
 
 ```bash
 cd /opt/goblog && git pull && make build && systemctl restart goblog
@@ -138,10 +140,11 @@ cd /opt/goblog && git pull && make build && systemctl restart goblog
 |------|------|
 | 静态文件 | `tpl/`、`static/`、`robots.txt` 随仓库更新；用 `make tar` 发版的话包里也已经带上。新增的 `static/icons/`、`static/js/*.js`、`static/admin/` 都从本机 `/static` 加载（带内容指纹），**CDN 桶（`app.cdn`）不需要上传任何新文件** |
 | 后台账号 | 内容仓库是公开的话，把账号搬进配置文件并**换一个新密码**，见下文「后台账号放在配置文件里」。没搬之前，后台每个列表页顶部都会有一条提醒 |
-| 新配置项 | 全部可选：`description`（站点简介，建议填，首页标题和搜索结果摘要会用）、`markdown_render`、`pwa`、`admin_email` / `admin_password_hash`、`server.host`（用 Cloudflare Tunnel / nginx 时建议 `"127.0.0.1"`），说明见 `conf/prod.yaml.example` |
+| 新配置项 | 全部可选：`description`（站点简介，建议填，首页标题和搜索结果摘要会用）、`markdown_render`、`pwa`、`admin_email` / `admin_password_hash`、`server.host`（用 Cloudflare Tunnel / nginx 时建议 `"127.0.0.1"`）、`github_stats` / `github_user` / `github_token`（项目页），说明见 `conf/prod.yaml.example` |
 | robots.txt | 1.9.1 起只屏蔽 `/admin/`、`/api/`、`/random`、`/offline`，并附上 sitemap 地址。此前的内容是 `Disallow: /`（拒绝所有搜索引擎）；如果那是有意的，把仓库根目录的 `robots.txt` 改回去即可 |
 | Service Worker | 访客的浏览器会注册 `/sw.js`（离线阅读）。反向代理 / Cloudflare 不要给 `/sw.js` 加长缓存（服务端返回的是 `no-cache`）。想关掉就设 `pwa: false` —— 它会让已安装的 Service Worker 自行注销并清空缓存；**回滚到 1.7 之前的版本，也请先这样跑几天** |
-| 内容仓库的新文件 | `likes.json`（点赞数，和 `views.json` 一样每小时提交一次）。草稿在 `<data_dir>/.drafts/`，不进仓库 |
+| 内容仓库的新文件 | `likes.json`（点赞数，和 `views.json` 一样每小时提交一次）、`projects.json`（项目，添加第一个项目时生成）。草稿在 `<data_dir>/.drafts/`，不进仓库 |
+| 出站网络 | 1.11 起服务器会访问 `api.github.com`（只读公开数据：项目的 Star 等，以及后台导入仓库时）。没有项目就不会请求；不想要可以设 `github_stats: false` |
 | 旧标签 | 1.9 之前用「`a, b`」这种写法输入标签，会产生带前导空格的重复标签（如 `" blog"` 和 `"blog"` 并存）。后台「标签」页现在可以改名 / 删除：把带空格的那个**改名成正常的名字**，两个标签就会合并，文章自动换到留下的那个标签下 |
 
 ## 配置说明
@@ -162,6 +165,9 @@ app:
   pwa: true                    # 可选：PWA / 离线阅读开关，默认开启；false 会让已安装的 Service Worker 自动注销
   admin_email: ""              # 推荐：后台账号写在配置里（见下文「后台账号放在配置文件里」）
   admin_password_hash: ""      # ./goblog -hash-password 生成
+  github_stats: true           # 可选：项目页显示 GitHub 仓库的 Star / 语言 / 最近提交，默认开启
+  github_user: ""              # 可选：后台「GitHub 上最近的仓库」列谁的仓库，留空 = git_repo 的所有者
+  github_token: ""             # 可选：GitHub API 每小时 60 次 → 5000 次，任何 token 都行，不需要任何权限
 
 server:
   host: ""                     # 可选：监听地址，留空 = 所有网卡；nginx / cloudflared 之后建议 "127.0.0.1"
@@ -188,6 +194,18 @@ app:
 
 两项都配置后只认这个账号，`users.json` 不再生效；随后可以把 `users.json` 从内容仓库删掉。
 旧哈希仍然留在 Git 历史里，所以**一定要换一个新密码**，不要沿用旧的。
+
+### 项目
+
+后台「项目」里添加的项目显示在 `/projects`（有第一个项目之后，导航栏才会出现「项目」），保存在内容仓库的 `projects.json`，
+和 `books.json` 一样可以直接手改。
+
+- **从 GitHub 添加**：项目列表页会列出 GitHub 上最近提交过、还没加进来的公开仓库（不含 fork、已归档的仓库），点「添加」自动读取名称、简介、主页、
+  语言和话题；也可以在表单里粘贴任意仓库地址（`https://github.com/用户名/仓库名` 或 `用户名/仓库名`）点「从 GitHub 读取」，只填空着的项。
+- **实时数据**：GitHub 仓库的 Star、Fork、主要语言、最近一次提交由服务器每 6 小时读取一次（带 ETag 的条件请求，没变化不计入限额），
+  只保存在内存里、不写进仓库；GitHub 连不上时页面照常显示，只是没有这些数字。`github_stats: false` 可以关掉。私有仓库和已删除的仓库不会出现源码链接。
+- **和文章互相链接**：在项目里选一篇「介绍文章」，项目卡片会链接过去，文章末尾也会出现这个项目。
+- 精选的项目排在最前面，并优先出现在首页侧栏的「项目」小组件里；已归档的项目排在最后。
 
 ### 草稿
 
