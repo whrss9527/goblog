@@ -126,6 +126,12 @@ body.admin {
     flex-direction: row;
 }
 
+.admin-head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
 .admin-suggestions {
     margin-bottom: 16px;
 }

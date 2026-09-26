@@ -1,7 +1,9 @@
 package filestore
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -38,7 +40,9 @@ type FileRepository struct {
 
 	gitEnabled bool
 	gitMu      sync.Mutex
+	sync       syncState
 	done       chan struct{}
+	closeOnce  sync.Once
 }
 
 func NewFileRepository(dataDir, gitRepo, gitToken string) (*FileRepository, error) {
@@ -62,6 +66,11 @@ func NewFileRepository(dataDir, gitRepo, gitToken string) (*FileRepository, erro
 	if err := r.loadAll(); err != nil {
 		return nil, err
 	}
+	// JSON files are written through a temporary sibling (writeFileAtomic); a
+	// "git add -A" at the wrong moment must not commit one
+	if err := r.excludeFromGit("*.tmp-*", "half-written files are never committed"); err != nil {
+		slog.Warn("could not exclude temporary files from git", "err", err)
+	}
 
 	go r.flushViewsLoop()
 	go r.pushViewsLoop()
@@ -77,11 +86,18 @@ func (r *FileRepository) ensureDataDir(gitRepo, gitToken string) error {
 			r.configureGitToken(gitToken)
 		}
 		r.configureGitIdentity()
-		cmd := exec.Command("git", "-C", r.dataDir, "pull", "--ff-only")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			slog.Warn("git pull failed, using local data", "err", err, "output", string(out))
-		} else {
-			slog.Info("git pull completed")
+		// what was pushed from elsewhere comes first; commits this server could
+		// not push before it stopped are replayed on top (a plain pull --ff-only
+		// used to give up here for good once both sides had new commits)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		pulled, _, err := r.integrateLocked(ctx, false)
+		switch {
+		case errors.Is(err, ErrNoRemote):
+		case err != nil:
+			slog.Warn("git pull failed, using local data", "err", err)
+		default:
+			slog.Info("git pull completed", "new_commits", pulled)
 		}
 		return nil
 	}
@@ -450,37 +466,55 @@ func (r *FileRepository) Done() <-chan struct{} {
 	return r.done
 }
 
+// Close stops the background loops and writes the counters one last time. It
+// may be called more than once.
 func (r *FileRepository) Close() {
-	close(r.done)
-	if err := r.flushViews(); err != nil {
-		slog.Error("final flush views failed", "err", err)
-	} else {
-		slog.Info("views flushed on shutdown")
-	}
-	if err := r.flushLikes(); err != nil {
-		slog.Error("final flush likes failed", "err", err)
-	}
+	r.closeOnce.Do(func() {
+		close(r.done)
+		if err := r.flushViews(); err != nil {
+			slog.Error("final flush views failed", "err", err)
+		} else {
+			slog.Info("views flushed on shutdown")
+		}
+		if err := r.flushLikes(); err != nil {
+			slog.Error("final flush likes failed", "err", err)
+		}
+	})
 }
 
-// gitPushWithRetry runs `git push` from r.dataDir, retrying transient
-// failures with exponential backoff. The push includes any previously-failed
-// commits, so we never lose data — at worst the next successful push catches
-// up. Logged as Warn (not Error) on each attempt and only Error after all
-// retries are exhausted.
+// gitPushWithRetry runs `git push` from r.dataDir. A push rejected because the
+// remote has commits this server does not (a post pushed from a laptop) is
+// followed by a sync — fetch, rebase, reload — and pushed again right away;
+// other failures are retried with exponential backoff. The push includes any
+// previously-failed commits, so we never lose data — at worst the next
+// successful push catches up. Logged as Warn (not Error) on each attempt and
+// only Error after all retries are exhausted. The caller holds gitMu.
 func (r *FileRepository) gitPushWithRetry() {
 	const maxAttempts = 3
 	backoff := 5 * time.Second
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		cmd := exec.Command("git", "-C", r.dataDir, "push")
-		out, err := cmd.CombinedOutput()
+		out, err := r.git(context.Background(), "push")
 		if err == nil {
 			return
 		}
 		if attempt == maxAttempts {
-			slog.Error("git push failed after retries", "attempts", maxAttempts, "err", err, "output", string(out))
+			slog.Error("git push failed after retries", "attempts", maxAttempts, "err", err)
 			return
 		}
-		slog.Warn("git push transient failure, will retry", "attempt", attempt, "err", err, "output", string(out), "next_delay", backoff)
+		if strings.Contains(out, "[rejected]") {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			_, reloaded, syncErr := r.syncLocked(ctx)
+			cancel()
+			if reloaded {
+				go r.runReloadHooks()
+			}
+			if syncErr != nil {
+				slog.Error("git push rejected and the remote changes could not be merged", "err", syncErr)
+				return
+			}
+			continue
+		}
+		slog.Warn("git push transient failure, will retry", "attempt", attempt, "err", err, "next_delay", backoff)
 		time.Sleep(backoff)
 		backoff *= 3
 	}

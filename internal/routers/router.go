@@ -85,6 +85,7 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 	heatmapHandler := admin.NewHeatMapHandler(repo)
 	heatmapHandler.RunTask(repo.Done())
 	postHandler := admin.NewPostHandler(repo, repo, repo, repo, feedHandler, sitemapHandler, server.config)
+	postHandler.Sync = repo
 	githubClient := github.NewClient(server.config.App.GitHubAPI, server.config.App.GitHubToken)
 	var githubStats *github.Stats // stays nil (no numbers, no requests) when app.github_stats is off
 	if server.config.App.GitHubStatsEnabled() {
@@ -119,7 +120,29 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 	bookHandler := admin.NewBookHandler(repo, server.config)
 	frontBookHandler := front.NewBookHandler(repo, server.config)
 
+	// Content pushed to the repository from elsewhere shows up without a restart: everything derived
+	// from it is rebuilt after each sync that brought something new.
+	repo.OnReload(func() {
+		feedHandler.GenerateFeedXml()
+		sitemapHandler.GenerateSitemap()
+		heatmapHandler.NewJob().Run()
+		if projects, err := repo.GetProjects(); err == nil {
+			view.SetProjectCount(len(projects))
+		}
+		if archive, err := repo.GetPostsArchive(); err == nil && len(archive) > 0 {
+			view.SetSiteSince(archive[len(archive)-1].CreatedAt)
+		}
+		githubStats.Kick()
+	})
+	syncEvery, err := server.config.App.GitSyncInterval()
+	if err != nil {
+		slog.Error("invalid app.git_sync, using the default", "err", err, "default", syncEvery)
+	}
+	repo.StartSync(syncEvery)
+	gitWebhook := &front.GitWebhook{Secret: server.config.App.GitWebhookSecret, RequestSync: repo.RequestSync}
+
 	loginLimiter := middleware.NewRateLimiter(5, 15*time.Minute)
+	hookLimiter := middleware.NewRateLimiter(30, time.Minute)
 	searchLimiter := middleware.NewRateLimiter(90, time.Minute)
 	likeLimiter := middleware.NewRateLimiter(20, time.Minute)
 
@@ -140,6 +163,7 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 		manage.Use(middleware.CSRFProtect)
 		manage.GET("/logout", authHandler.Logout)
 		manage.GET("/", postHandler.PostList)
+		manage.POST("/sync", postHandler.SyncNow)
 		manage.GET("/posts/add", postHandler.PostAdd)
 		manage.POST("/posts/save", postHandler.PostSave)
 		manage.POST("/posts/delete/:id", postHandler.PostDelete)
@@ -176,6 +200,7 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 		client.GET("/random", frontPostHandler.Random)
 		client.GET("/api/search", searchLimiter.Limit(), searchHandler.Search)
 		client.POST("/api/posts/:identity/like", likeLimiter.Limit(), frontPostHandler.Like)
+		client.POST("/api/hooks/git", hookLimiter.Limit(), gitWebhook.Handle)
 		client.GET("/reading", frontBookHandler.ReadingList)
 		client.GET("/projects", frontProjectHandler.Projects)
 		client.GET("/pages/:id", frontPageHandler.Page)

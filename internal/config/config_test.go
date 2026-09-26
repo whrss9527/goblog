@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestAccountInContentRepo(t *testing.T) {
@@ -72,5 +73,21 @@ func TestExampleConfigsLoad(t *testing.T) {
 	}
 	if got := conf.Server.TrustedProxies; len(got) != 2 || got[0] != "172.18.0.0/16" || got[1] != "10.0.0.1" {
 		t.Errorf("trusted_proxies = %#v", got)
+	}
+}
+
+func TestGitSyncInterval(t *testing.T) {
+	tests := map[string]time.Duration{"": DefaultGitSync, "off": 0, "OFF": 0, "0": 0, "false": 0, "5m": 5 * time.Minute, " 1h ": time.Hour}
+	for value, want := range tests {
+		got, err := (&AppConfig{GitSync: value}).GitSyncInterval()
+		if err != nil || got != want {
+			t.Errorf("git_sync %q = %v, %v; want %v", value, got, err, want)
+		}
+	}
+	for _, bad := range []string{"soon", "10", "30s"} {
+		got, err := (&AppConfig{GitSync: bad}).GitSyncInterval()
+		if err == nil || got != DefaultGitSync {
+			t.Errorf("git_sync %q = %v, %v; want the default and an error", bad, got, err)
+		}
 	}
 }

@@ -30,6 +30,11 @@ func (r *FileRepository) draftPath(slug string) string {
 // which is local to this clone: nothing in the repository itself changes. It
 // fails when that cannot be guaranteed, and no draft is written then.
 func (r *FileRepository) ensureDraftsPrivate() error {
+	return r.excludeFromGit(draftsDir+"/", "drafts stay on this server")
+}
+
+// excludeFromGit adds pattern to .git/info/exclude (once).
+func (r *FileRepository) excludeFromGit(pattern, why string) error {
 	if !r.gitEnabled {
 		return nil
 	}
@@ -39,14 +44,14 @@ func (r *FileRepository) ensureDraftsPrivate() error {
 		return fmt.Errorf("read git exclude file: %w", err)
 	}
 	for _, line := range strings.Split(string(existing), "\n") {
-		if strings.TrimSpace(line) == draftsDir+"/" {
+		if strings.TrimSpace(line) == pattern {
 			return nil
 		}
 	}
 	if err := os.MkdirAll(filepath.Dir(exclude), 0o755); err != nil {
 		return fmt.Errorf("create git info dir: %w", err)
 	}
-	addition := "# goblog: drafts stay on this server\n" + draftsDir + "/\n"
+	addition := "# goblog: " + why + "\n" + pattern + "\n"
 	if len(existing) > 0 && !strings.HasSuffix(string(existing), "\n") {
 		addition = "\n" + addition
 	}

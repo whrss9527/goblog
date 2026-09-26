@@ -52,6 +52,13 @@ The Gin engine is initialized in `internal/pkg/gin/gin.go` (CORS, error handling
 ### Key Patterns
 
 - **Content storage**: All mutable data lives under `app.data_dir` on disk, organized as Markdown files with YAML frontmatter (see `internal/filestore/frontmatter.go`) plus JSON sidecar files for non-content entities. The directory is initialized by `git clone` of `app.git_repo` (uses `app.git_token` if private). Saves write the file then `git add && git commit && git push` if a git remote is configured.
+- **Content sync** (`internal/filestore/sync.go`): the author also pushes to the content repository directly. `Sync` =
+  fetch → commit everything pending (counters in their own commit) → `git rebase @{u}` (abort + `ErrSyncConflict` on
+  conflicts; never an autostash: a queued admin commit would come back as conflict markers) → `reloadContent` (scratch
+  repository, swapped in only when every file parsed; counters stay from memory) → `OnReload` hooks (feed, sitemap,
+  heatmap, nav, GitHub numbers) → push. Runs every `app.git_sync` (default 10m), on `RequestSync` (the signed webhook
+  `POST /api/hooks/git`), from `POST /admin/sync`, when a push is rejected, and (without reload) at startup. All git
+  commands go through `r.git` (`GIT_TERMINAL_PROMPT=0`); lock order is `gitMu` → `mu`, never the other way round.
 - **Post ID**: Posts use UUID v4 (dashes removed) as primary key, stored as string. The `identity` field is a separate URL-friendly slug used in `/posts/:identity` routes.
 - **Config**: Viper-based YAML config with defaults embedded in `internal/config/config.go`. Environment configs in `conf/dev.yaml` and `conf/prod.yaml` (both gitignored; use `conf/{dev,prod}.yaml.example` as templates).
 - **Auth**: Admin routes use `gin-contrib/sessions` with signed cookie store via `middleware.AuthWithSession`. Session secret configured in `app.session_secret` (must be a real random value in production).

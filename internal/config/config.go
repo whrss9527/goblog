@@ -2,9 +2,11 @@ package config
 
 import (
 	"bytes"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/viper"
@@ -61,6 +63,13 @@ type (
 		GitHubToken string `mapstructure:"github_token"`
 		// GitHubAPI is the API address, for GitHub Enterprise (and tests).
 		GitHubAPI string `mapstructure:"github_api"`
+		// GitSync is how often the content repository is synced with its remote
+		// while the server runs ("10m" when empty, "off" to only sync at
+		// startup, from the admin and through the webhook).
+		GitSync string `mapstructure:"git_sync"`
+		// GitWebhookSecret enables POST /api/hooks/git: a GitHub webhook signed
+		// with this secret makes the server sync right after every push.
+		GitWebhookSecret string `mapstructure:"git_webhook_secret"`
 	}
 	ServerConfig struct {
 		// Host is the address to listen on. Empty (the default) means every interface; "127.0.0.1" keeps
@@ -108,6 +117,29 @@ func (c *AppConfig) AccountInContentRepo() bool {
 // PWAEnabled reports whether the site should offer its service worker.
 func (c *AppConfig) PWAEnabled() bool {
 	return c == nil || c.PWA == nil || *c.PWA
+}
+
+// DefaultGitSync is how often the content repository is synced when git_sync is not set.
+const DefaultGitSync = 10 * time.Minute
+
+// GitSyncInterval returns how often to sync the content repository; 0 means
+// never on a schedule. An unreadable value falls back to the default.
+func (c *AppConfig) GitSyncInterval() (time.Duration, error) {
+	if c == nil {
+		return DefaultGitSync, nil
+	}
+	switch value := strings.ToLower(strings.TrimSpace(c.GitSync)); value {
+	case "":
+		return DefaultGitSync, nil
+	case "off", "false", "no", "0":
+		return 0, nil
+	default:
+		d, err := time.ParseDuration(value)
+		if err != nil || d < time.Minute {
+			return DefaultGitSync, fmt.Errorf("git_sync %q: use a duration of at least 1m (e.g. \"10m\") or \"off\"", c.GitSync)
+		}
+		return d, nil
+	}
 }
 
 // GitHubStatsEnabled reports whether project pages show live repository numbers.

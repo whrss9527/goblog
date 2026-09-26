@@ -5,6 +5,7 @@
 ## 特性
 
 - **文件存储**：博客内容（文章、分类、标签、页面）以 Markdown 文件形式存放在独立的 Git 仓库中（`blog-data`），运行时按需克隆/拉取，无需数据库。
+  在电脑上写好文章 `git push` 到内容仓库，博客会自动同步上线（默认每 10 分钟；配置 GitHub Webhook 后几秒内），不用重启。
 - **管理后台**：登录后可对文章、页面、项目、分类、标签、阅读清单做增删改查；admin 操作通过 session cookie 鉴权。
   手机上同样可用；编辑器会在浏览器本地自动保留草稿（关页、登录过期、保存失败都不丢稿），保存前校验文章地址，不会覆盖别的文章。
   标签可以改名、合并（改成另一个标签的名字）、删除，文章里的引用自动跟着变；还有文章在用的分类不允许删除。
@@ -126,9 +127,9 @@ systemctl status goblog
 cd /opt/goblog && git pull && make build && systemctl restart goblog
 ```
 
-## 从 1.0 升级到 1.12
+## 从 1.0 升级到 1.13
 
-1.1 ～ 1.12 没有破坏性变更：配置文件不改也能启动，内容仓库的文件格式保持不变。照常发版即可：
+1.1 ～ 1.13 没有破坏性变更：配置文件不改也能启动，内容仓库的文件格式保持不变。照常发版即可：
 
 ```bash
 cd /opt/goblog && git pull && make build && systemctl restart goblog
@@ -145,6 +146,7 @@ cd /opt/goblog && git pull && make build && systemctl restart goblog
 | Service Worker | 访客的浏览器会注册 `/sw.js`（离线阅读）。反向代理 / Cloudflare 不要给 `/sw.js` 加长缓存（服务端返回的是 `no-cache`）。想关掉就设 `pwa: false` —— 它会让已安装的 Service Worker 自行注销并清空缓存；**回滚到 1.7 之前的版本，也请先这样跑几天** |
 | 内容仓库的新文件 | `likes.json`（点赞数，和 `views.json` 一样每小时提交一次）、`projects.json`（项目，添加第一个项目时生成）。草稿在 `<data_dir>/.drafts/`，不进仓库 |
 | 反向代理 | 1.12 起只信任本机代理转发的访客 IP。cloudflared / nginx 不在本机（如 Docker 容器）时，把它的地址加进 `server.trusted_proxies`，见「反向代理与访客 IP」 |
+| 内容仓库同步 | 1.13 起运行时每 10 分钟和远程同步一次（`git_sync`），推送被拒时自动变基后重推。数据目录里如果有手动改过、没提交的文件，同步前会被提交（和后台保存时的 `git add -A` 一样）。想要推送后立刻上线，配置 `git_webhook_secret` 和 GitHub Webhook |
 | 出站网络 | 1.11 起服务器会访问 `api.github.com`（只读公开数据：项目的 Star 等，以及后台导入仓库时）。没有项目就不会请求；不想要可以设 `github_stats: false` |
 | 旧标签 | 1.9 之前用「`a, b`」这种写法输入标签，会产生带前导空格的重复标签（如 `" blog"` 和 `"blog"` 并存）。后台「标签」页现在可以改名 / 删除：把带空格的那个**改名成正常的名字**，两个标签就会合并，文章自动换到留下的那个标签下 |
 
@@ -169,6 +171,8 @@ app:
   github_stats: true           # 可选：项目页显示 GitHub 仓库的 Star / 语言 / 最近提交，默认开启
   github_user: ""              # 可选：后台「GitHub 上最近的仓库」列谁的仓库，留空 = git_repo 的所有者
   github_token: ""             # 可选：GitHub API 每小时 60 次 → 5000 次，任何 token 都行，不需要任何权限
+  git_sync: "10m"              # 可选：多久和内容仓库的远程同步一次（拉取别处推送的文章），"off" 关闭定时同步
+  git_webhook_secret: ""       # 可选：配置 GitHub Webhook 后，推送内容仓库几秒内就同步（见下文「内容仓库同步」）
 
 server:
   host: ""                     # 可选：监听地址，留空 = 所有网卡；nginx / cloudflared 之后建议 "127.0.0.1"
@@ -204,6 +208,22 @@ app:
 
 两项都配置后只认这个账号，`users.json` 不再生效；随后可以把 `users.json` 从内容仓库删掉。
 旧哈希仍然留在 Git 历史里，所以**一定要换一个新密码**，不要沿用旧的。
+
+### 内容仓库同步
+
+内容仓库不只由后台写入：也可以在电脑上用编辑器写好文章、`git push`，或者直接在 GitHub 网页上改。goblog 运行时会自动把这些改动同步进来，不用重启：
+
+- **定时同步**：默认每 10 分钟 `git fetch` 一次（`git_sync` 可调，`"off"` 关闭）。远程有新提交时，把服务器自己还没推送的提交
+  （每小时的 `views.json`、后台的保存）变基到远程之上，重新加载文章、页面、标签、分类、阅读清单、项目，再更新 RSS、sitemap、热力图，最后推送。
+  阅读量、点赞数以内存为准，不会被覆盖。
+- **后台「同步内容仓库」按钮**（文章列表右上角）：立即同步一次，并告诉你拉取了几个提交。
+- **GitHub Webhook（推荐）**：推送后几秒内上线。在配置里设置 `git_webhook_secret`（`openssl rand -hex 20` 生成），然后在内容仓库的
+  GitHub 页面 Settings → Webhooks → Add webhook：Payload URL 填 `https://你的域名/api/hooks/git`，Content type 选 `application/json`，
+  Secret 填同一个值，事件选 “Just the push event”。签名不对的请求一律拒绝；没配置 secret 时这个地址不存在。
+- **冲突**：服务器和远程改了同一处（比如同时在后台和电脑上改了同一篇文章），服务器保留自己的版本继续运行，不会强推覆盖远程；
+  后台会提示，需要登录服务器在数据目录执行 `git pull --rebase` 手动合并。推送上去的文件格式有误（比如 JSON 写坏了）时，
+  服务器继续用内存里的旧内容，日志里会说明原因。
+- 以前服务器推送 `views.json` 时如果远程已经有了新提交，推送会一直失败，重启时的 `git pull --ff-only` 也会放弃，只能手动处理；现在推送被拒后会自动同步再推送，启动时也会先把本地未推送的提交变基到远程之上。
 
 ### 项目
 

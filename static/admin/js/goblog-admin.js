@@ -68,8 +68,9 @@
         if (history.replaceState) { history.replaceState(null, '', location.pathname); }
     }
 
-    /* "?done=merged&name=…" has been rendered by the server: a reload should not repeat it */
-    if (new URLSearchParams(location.search).get('done') && history.replaceState) {
+    /* "?done=merged&name=…" / "?sync=ok…" have been rendered by the server: a reload should not repeat them */
+    var shown = new URLSearchParams(location.search);
+    if ((shown.get('done') || shown.get('sync')) && history.replaceState) {
         history.replaceState(null, '', location.pathname);
     }
 

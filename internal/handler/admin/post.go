@@ -1,12 +1,15 @@
 package admin
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -19,13 +22,21 @@ import (
 )
 
 type PostHandler struct {
-	PostRepo       repository.PostRepository
-	DraftRepo      repository.DraftRepository
-	CategoryRepo   repository.CategoryRepository
-	TagRepo        repository.TagRepository
+	PostRepo     repository.PostRepository
+	DraftRepo    repository.DraftRepository
+	CategoryRepo repository.CategoryRepository
+	TagRepo      repository.TagRepository
+	// Sync links the content repository with its remote (optional).
+	Sync           ContentSync
 	feedHandler    *front.FeedHandler
 	sitemapHandler *front.SitemapHandler
 	config         *config.Config
+}
+
+// ContentSync is the git side of the content repository.
+type ContentSync interface {
+	GitEnabled() bool
+	Sync(ctx context.Context) (filestore.SyncResult, error)
 }
 
 func NewPostHandler(postRepo repository.PostRepository, draftRepo repository.DraftRepository, categoryRepo repository.CategoryRepository, tagRepo repository.TagRepository, feedHandler *front.FeedHandler, sitemapHandler *front.SitemapHandler, config *config.Config) *PostHandler {
@@ -80,8 +91,42 @@ func (h *PostHandler) PostList(ctx *gin.Context) {
 	data["posts"] = posts
 	data["drafts"] = drafts
 	data["categories"] = categories
+	data["git_sync"] = h.Sync != nil && h.Sync.GitEnabled()
+	// the outcome of "同步内容仓库", e.g. /admin?sync=ok&pulled=2&head=1a2b3c4
+	data["sync"] = ctx.Query("sync")
+	data["sync_pulled"], _ = strconv.Atoi(ctx.Query("pulled"))
+	data["sync_head"] = ctx.Query("head")
 	data["csrf_token"], _ = ctx.Get("csrf_token")
 	view.AdminRender(data, ctx.Writer, "posts/list", h.config.App)
+}
+
+// SyncNow handles POST /admin/sync: bring in what was pushed to the content
+// repository from elsewhere (a laptop, GitHub's editor) without waiting for
+// the next scheduled sync, and push what this server has not pushed yet.
+func (h *PostHandler) SyncNow(ctx *gin.Context) {
+	if h.Sync == nil || !h.Sync.GitEnabled() {
+		http.Redirect(ctx.Writer, ctx.Request, "/admin?sync=noremote", http.StatusFound)
+		return
+	}
+	c, cancel := context.WithTimeout(ctx.Request.Context(), time.Minute)
+	defer cancel()
+	result, err := h.Sync.Sync(c)
+	outcome := "ok"
+	switch {
+	case errors.Is(err, filestore.ErrSyncConflict):
+		outcome = "conflict"
+	case errors.Is(err, filestore.ErrNoRemote):
+		outcome = "noremote"
+	case err != nil:
+		slog.Error("sync content repository failed", "err", err)
+		outcome = "failed"
+	}
+	q := url.Values{"sync": {outcome}}
+	if outcome == "ok" {
+		q.Set("pulled", strconv.Itoa(result.Pulled))
+		q.Set("head", result.Head)
+	}
+	http.Redirect(ctx.Writer, ctx.Request, "/admin?"+q.Encode(), http.StatusFound)
 }
 
 // PostAdd 处理文章添加请求: a new post, an existing one (?id=) or a draft (?draft=).
