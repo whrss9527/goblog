@@ -3,15 +3,19 @@ package admin
 import (
 	"encoding/json"
 	"log/slog"
-	"os"
+	"sort"
+	"sync/atomic"
 
 	"github.com/robfig/cron/v3"
 
 	"goblog/internal/repository"
 )
 
+// HeatMapHandler aggregates the posts per day for the heatmap on /tags. The
+// result is kept in memory (it used to be written to ./heatmap.txt).
 type HeatMapHandler struct {
 	PostRepo repository.PostRepository
+	data     atomic.Pointer[[]byte]
 }
 
 func NewHeatMapHandler(postRepo repository.PostRepository) *HeatMapHandler {
@@ -21,15 +25,23 @@ func NewHeatMapHandler(postRepo repository.PostRepository) *HeatMapHandler {
 }
 
 type HeatMapGenerateJob struct {
-	Name     string
-	PostRepo repository.PostRepository
+	Name    string
+	handler *HeatMapHandler
 }
 
 func (handler *HeatMapHandler) NewJob() *HeatMapGenerateJob {
 	return &HeatMapGenerateJob{
-		Name:     "heatmap",
-		PostRepo: handler.PostRepo,
+		Name:    "heatmap",
+		handler: handler,
 	}
+}
+
+// JSON returns the latest heatmap data (a JSON array, "[]" before the first run).
+func (handler *HeatMapHandler) JSON() []byte {
+	if data := handler.data.Load(); data != nil {
+		return *data
+	}
+	return []byte("[]")
 }
 
 func (handler *HeatMapHandler) RunTask(done <-chan struct{}) {
@@ -70,7 +82,7 @@ type Details struct {
 }
 
 func (job HeatMapGenerateJob) Run() {
-	posts, _, err := job.PostRepo.GetPosts(repository.PostParams{
+	posts, _, err := job.handler.PostRepo.GetPosts(repository.PostParams{
 		PerPage: 0,
 		Page:    1,
 	})
@@ -105,6 +117,7 @@ func (job HeatMapGenerateJob) Run() {
 			Details: detailMap[date],
 		})
 	}
+	sort.Slice(heatMaps, func(i, j int) bool { return heatMaps[i].Date < heatMaps[j].Date })
 
 	slog.Info("heatmap job finished", "task", job.Name, "entries", len(heatMaps))
 	data, err := json.Marshal(heatMaps)
@@ -112,7 +125,5 @@ func (job HeatMapGenerateJob) Run() {
 		slog.Error("heatmap marshal failed", "err", err)
 		return
 	}
-	if err := os.WriteFile("./heatmap.txt", data, 0644); err != nil {
-		slog.Error("heatmap write file failed", "err", err)
-	}
+	job.handler.data.Store(&data)
 }

@@ -11,10 +11,10 @@
 - **公开前台**：首页、文章页、标签页、分类页、项目、阅读清单、关于页、站内搜索（基于内存索引）。
 - **项目展示**：`/projects` 以卡片展示自己做的项目（简介、亮点、技术栈、源码 / 访问地址、介绍文章），
   GitHub 仓库自动显示 Star、主要语言和最近提交；后台粘贴仓库地址即可一键读取，还会列出 GitHub 上最近还没加进来的仓库。
-- **RSS / Atom**：启动时生成 `/feed.xml`。
-- **Sitemap**：`/sitemap.xml`。
+- **RSS / Atom**：`/feed.xml`，最近 20 篇全文；支持 ETag / Last-Modified，阅读器轮询时没有新内容只返回 304。
+- **Sitemap**：`/sitemap.xml`（文章、页面、项目，带 lastmod），同样支持条件请求。
 - **评论**：基于 [giscus](https://giscus.app/) GitHub Discussions 评论组件（滚动到附近才加载）。
-- **热力图**：每小时定时聚合写入 `heatmap.txt`，用于贡献图展示。
+- **热力图**：每小时定时聚合（在内存里），用于贡献图展示。
 - **优雅退出**：`SIGTERM` 触发，超时时间可配。
 - **服务端渲染 Markdown**：文章 HTML 随响应直出（首屏无白屏、无需 jQuery/editor.md、无 JS 也可读、爬虫可见），
   渲染结果与后台 editor.md 预览保持一致；含流程图 / 时序图 / 公式的文章自动回退到浏览器渲染。
@@ -126,9 +126,9 @@ systemctl status goblog
 cd /opt/goblog && git pull && make build && systemctl restart goblog
 ```
 
-## 从 1.0 升级到 1.11
+## 从 1.0 升级到 1.12
 
-1.1 ～ 1.11 没有破坏性变更：配置文件不改也能启动，内容仓库的文件格式保持不变。照常发版即可：
+1.1 ～ 1.12 没有破坏性变更：配置文件不改也能启动，内容仓库的文件格式保持不变。照常发版即可：
 
 ```bash
 cd /opt/goblog && git pull && make build && systemctl restart goblog
@@ -144,6 +144,7 @@ cd /opt/goblog && git pull && make build && systemctl restart goblog
 | robots.txt | 1.9.1 起只屏蔽 `/admin/`、`/api/`、`/random`、`/offline`，并附上 sitemap 地址。此前的内容是 `Disallow: /`（拒绝所有搜索引擎）；如果那是有意的，把仓库根目录的 `robots.txt` 改回去即可 |
 | Service Worker | 访客的浏览器会注册 `/sw.js`（离线阅读）。反向代理 / Cloudflare 不要给 `/sw.js` 加长缓存（服务端返回的是 `no-cache`）。想关掉就设 `pwa: false` —— 它会让已安装的 Service Worker 自行注销并清空缓存；**回滚到 1.7 之前的版本，也请先这样跑几天** |
 | 内容仓库的新文件 | `likes.json`（点赞数，和 `views.json` 一样每小时提交一次）、`projects.json`（项目，添加第一个项目时生成）。草稿在 `<data_dir>/.drafts/`，不进仓库 |
+| 反向代理 | 1.12 起只信任本机代理转发的访客 IP。cloudflared / nginx 不在本机（如 Docker 容器）时，把它的地址加进 `server.trusted_proxies`，见「反向代理与访客 IP」 |
 | 出站网络 | 1.11 起服务器会访问 `api.github.com`（只读公开数据：项目的 Star 等，以及后台导入仓库时）。没有项目就不会请求；不想要可以设 `github_stats: false` |
 | 旧标签 | 1.9 之前用「`a, b`」这种写法输入标签，会产生带前导空格的重复标签（如 `" blog"` 和 `"blog"` 并存）。后台「标签」页现在可以改名 / 删除：把带空格的那个**改名成正常的名字**，两个标签就会合并，文章自动换到留下的那个标签下 |
 
@@ -173,7 +174,16 @@ server:
   host: ""                     # 可选：监听地址，留空 = 所有网卡；nginx / cloudflared 之后建议 "127.0.0.1"
   http_port: 9091
   graceful_shutdown_timeout: 15s
+  trusted_proxies: []          # 可选：反向代理不在本机时填它的地址（见下文「反向代理与访客 IP」）
 ```
+
+### 反向代理与访客 IP
+
+登录、点赞、搜索都按访客 IP 限流。访客 IP 只从**可信代理**转发来的 `X-Forwarded-For` / `X-Real-IP` 里取，默认只信任本机
+（`127.0.0.1`、`::1`）：cloudflared 或 nginx 和 goblog 跑在同一台机器上时什么都不用配。
+
+如果代理在别处（比如 cloudflared / nginx 跑在 Docker 容器里、或者另一台内网机器），把它的地址或网段写进 `server.trusted_proxies`，
+例如 `["172.18.0.0/16"]`。不写的话所有访客会被当成同一个 IP、共用一份限流额度；goblog 发现这种情况会在日志里提醒一次。
 
 ### 后台账号放在配置文件里（推荐）
 

@@ -2,4 +2,4 @@
 package version
 
 // Version is bumped together with CHANGELOG.md on every release.
-const Version = "1.11.0"
+const Version = "1.12.0"

@@ -3,7 +3,8 @@ package front
 import (
 	"encoding/xml"
 	"log/slog"
-	"os"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -13,9 +14,13 @@ import (
 
 type SitemapHandler struct {
 	PostRepo repository.PostRepository
+	// Pages adds every page (about, …); without it only /pages/about is listed.
+	Pages repository.PageRepository
 	// Projects adds /projects once there is at least one project (optional).
 	Projects repository.ProjectRepository
 	host     string
+
+	doc cachedDoc
 }
 
 func NewSitemapHandler(postRepo repository.PostRepository, host string) *SitemapHandler {
@@ -35,66 +40,87 @@ type sitemapURL struct {
 	Priority   string `xml:"priority,omitempty"`
 }
 
+// GenerateSitemap rebuilds the sitemap. It is called at startup and whenever
+// posts or projects change.
 func (h *SitemapHandler) GenerateSitemap() {
-	host := h.host
+	host := strings.TrimRight(h.host, "/")
 	posts, err := h.PostRepo.GetPostsArchive()
 	if err != nil {
 		slog.Error("sitemap: get posts failed", "err", err)
 		return
 	}
-
-	urls := []sitemapURL{
-		{Loc: host, Changefreq: "daily", Priority: "1.0"},
-		{Loc: host + "/tags", Changefreq: "weekly", Priority: "0.8"},
-		{Loc: host + "/archive", Changefreq: "weekly", Priority: "0.8"},
-		{Loc: host + "/reading", Changefreq: "weekly", Priority: "0.6"},
-		{Loc: host + "/stats", Changefreq: "weekly", Priority: "0.5"},
-		{Loc: host + "/pages/about", Changefreq: "monthly", Priority: "0.6"},
+	var latest time.Time
+	for _, post := range posts {
+		if t := lastModified(post.CreatedAt, post.UpdatedAt); t.After(latest) {
+			latest = t
+		}
+	}
+	date := func(t time.Time) string {
+		if t.IsZero() {
+			return ""
+		}
+		return t.Format(time.DateOnly)
 	}
 
+	// lists change whenever a post does
+	urls := []sitemapURL{
+		{Loc: host + "/", Lastmod: date(latest), Changefreq: "daily", Priority: "1.0"}, // as in the home page's canonical
+		{Loc: host + "/tags", Lastmod: date(latest), Changefreq: "weekly", Priority: "0.8"},
+		{Loc: host + "/archive", Lastmod: date(latest), Changefreq: "weekly", Priority: "0.8"},
+	}
 	if h.Projects != nil {
 		if projects, err := h.Projects.GetProjects(); err == nil && len(projects) > 0 {
-			urls = append(urls, sitemapURL{Loc: host + "/projects", Changefreq: "weekly", Priority: "0.7"})
+			var changed time.Time
+			for _, p := range projects {
+				if p.UpdatedAt.After(changed) {
+					changed = p.UpdatedAt
+				}
+			}
+			urls = append(urls, sitemapURL{Loc: host + "/projects", Lastmod: date(changed), Changefreq: "weekly", Priority: "0.7"})
 		}
+	}
+	urls = append(urls,
+		sitemapURL{Loc: host + "/reading", Changefreq: "weekly", Priority: "0.6"},
+		sitemapURL{Loc: host + "/stats", Changefreq: "weekly", Priority: "0.5"},
+	)
+	pageIds := []string{"about"}
+	if h.Pages != nil {
+		if pages, err := h.Pages.GetPages(repository.PageParams{}); err == nil {
+			pageIds = pageIds[:0]
+			for _, page := range pages {
+				pageIds = append(pageIds, page.Id)
+			}
+		}
+	}
+	for _, id := range pageIds {
+		urls = append(urls, sitemapURL{Loc: host + "/pages/" + url.PathEscape(id), Changefreq: "monthly", Priority: "0.6"})
 	}
 
 	for _, post := range posts {
-		lastmod := post.UpdatedAt
-		if lastmod.IsZero() {
-			lastmod = post.CreatedAt
-		}
 		urls = append(urls, sitemapURL{
-			Loc:        host + "/posts/" + post.Identity,
-			Lastmod:    lastmod.Format(time.DateOnly),
+			Loc:        host + "/posts/" + url.PathEscape(post.Identity),
+			Lastmod:    date(lastModified(post.CreatedAt, post.UpdatedAt)),
 			Changefreq: "monthly",
 			Priority:   "0.7",
 		})
 	}
 
-	sitemap := urlset{
-		Xmlns: "http://www.sitemaps.org/schemas/sitemap/0.9",
-		URLs:  urls,
-	}
-
-	data, err := xml.MarshalIndent(sitemap, "", "  ")
+	data, err := xml.MarshalIndent(urlset{Xmlns: "http://www.sitemaps.org/schemas/sitemap/0.9", URLs: urls}, "", "  ")
 	if err != nil {
 		slog.Error("sitemap: marshal failed", "err", err)
 		return
 	}
+	h.doc.set(append([]byte(xml.Header), data...), latest)
+}
 
-	content := append([]byte(xml.Header), data...)
-	if err := os.WriteFile("./sitemap.xml", content, 0644); err != nil {
-		slog.Error("sitemap: write file failed", "err", err)
+// lastModified is the later of a post's two dates (either may be missing).
+func lastModified(created, updated time.Time) time.Time {
+	if updated.After(created) {
+		return updated
 	}
+	return created
 }
 
 func (h *SitemapHandler) GetSitemap(ctx *gin.Context) {
-	file, err := os.ReadFile("./sitemap.xml")
-	if err != nil {
-		slog.Error("read sitemap.xml failed", "err", err)
-		ctx.Writer.WriteHeader(500)
-		return
-	}
-	ctx.Header("Content-Type", "application/xml; charset=utf-8")
-	ctx.Writer.Write(file)
+	h.doc.serve(ctx, "application/xml; charset=utf-8")
 }

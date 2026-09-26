@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"html/template"
 	"log/slog"
-	"os"
 	"sort"
 
 	"github.com/gin-gonic/gin"
@@ -16,6 +15,8 @@ import (
 
 type TagHandler struct {
 	TagRepo repository.TagRepository
+	// Heatmap returns the posts-per-day data of the heatmap (a JSON array).
+	Heatmap func() []byte
 	config  *config.Config
 }
 
@@ -27,13 +28,12 @@ func NewTagHandler(tagRepo repository.TagRepository, config *config.Config) *Tag
 }
 
 func (handler *TagHandler) Tag(ctx *gin.Context) {
-	heatmap, err := os.ReadFile("./heatmap.txt")
-	if err != nil {
-		slog.Error("read heatmap failed", "err", err)
-		heatmap = []byte("[]")
+	heatmap := []byte("[]")
+	if handler.Heatmap != nil {
+		heatmap = handler.Heatmap()
 	}
 	if !json.Valid(heatmap) {
-		slog.Error("heatmap.txt is not valid JSON, ignoring")
+		slog.Error("heatmap data is not valid JSON, ignoring")
 		heatmap = []byte("[]")
 	}
 	tags, err := handler.TagRepo.GetTags()

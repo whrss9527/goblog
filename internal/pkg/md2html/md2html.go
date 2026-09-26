@@ -8,13 +8,16 @@ import (
 	"github.com/russross/blackfriday/v2"
 )
 
-// Md2Html renders Markdown for the feed. It is the same HTML the site shows
-// (see RenderArticle) plus inline styles, because feed readers drop stylesheets.
-func Md2Html(markdown []byte) string {
-	rendered, err := RenderArticle(string(markdown))
+// FeedHTML renders Markdown for the feed: the same HTML the site shows (see
+// RenderArticle), with site-relative links and images made absolute against
+// base — readers resolve relative addresses against the feed, or not at all.
+// Readers bring their own styles for paragraphs, lists and code, so there are
+// no inline styles (they used to be a third of the feed's size).
+func FeedHTML(markdown, base string) string {
+	rendered, err := RenderArticle(markdown)
 	if err != nil {
 		slog.Error("md2html render failed", "err", err)
-		rendered = string(blackfriday.Run(markdown))
+		rendered = string(blackfriday.Run([]byte(markdown)))
 	}
 
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(rendered))
@@ -23,26 +26,16 @@ func Md2Html(markdown []byte) string {
 		return rendered
 	}
 	body := doc.Find("body")
-
-	body.Find("p, h1, h2, h3, h4, h5, h6, ul, ol, table, pre").Each(func(i int, s *goquery.Selection) {
-		s.SetAttr("style", "max-width: 1300px; display: block; margin-left: auto; margin-right: auto; text-align: left;")
-	})
-	// no display:block here: list items would lose their bullets and numbers
-	body.Find("li").Each(func(i int, s *goquery.Selection) {
-		s.SetAttr("style", "max-width: 1300px; margin-left: auto; margin-right: auto; text-align: left;")
-	})
-
-	body.Find("img").Each(func(i int, s *goquery.Selection) {
-		s.SetAttr("style", "max-width: 500px; max-height: 500px; display: block; margin-left: auto; margin-right: auto;")
-	})
-
-	body.Find("code").Each(func(i int, s *goquery.Selection) {
-		if goquery.NodeName(s.Parent()) == "pre" {
-			s.SetAttr("style", "display: block; white-space: pre; tab-size: 4; border: 1px solid #ccc; padding: 6px 10px; color: #333; background-color: #f9f9f9; border-radius: 3px;")
-		} else {
-			s.ReplaceWithHtml("<b>" + escapeText(s.Text()) + "</b>")
+	base = strings.TrimRight(base, "/")
+	absolute := func(attr string) func(int, *goquery.Selection) {
+		return func(_ int, s *goquery.Selection) {
+			if v, _ := s.Attr(attr); strings.HasPrefix(v, "/") && !strings.HasPrefix(v, "//") {
+				s.SetAttr(attr, base+v)
+			}
 		}
-	})
+	}
+	body.Find("a[href]").Each(absolute("href"))
+	body.Find("img[src]").Each(absolute("src"))
 
 	out, err := body.Html()
 	if err != nil {
@@ -51,7 +44,3 @@ func Md2Html(markdown []byte) string {
 	}
 	return strings.ReplaceAll(out, "/>", ">")
 }
-
-var textEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
-
-func escapeText(s string) string { return textEscaper.Replace(s) }

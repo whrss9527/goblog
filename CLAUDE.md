@@ -85,8 +85,17 @@ The Gin engine is initialized in `internal/pkg/gin/gin.go` (CORS, error handling
   address and project tests use `fakeGitHub`.
 - **Counters**: view counts (`views.json`) and likes (`likes.json`) live in memory, are flushed to the data dir every 5 minutes and committed/pushed hourly. Both are keyed by post slug and migrate on slug rename.
 - **JSON API**: `GET /api/search?q=` (instant search), `POST /api/posts/:identity/like`; both are rate limited per IP via `middleware.NewRateLimiter`. `GET /random` redirects to a random post.
-- **Cron jobs**: Heatmap data aggregation runs hourly via `robfig/cron`, writing `heatmap.txt`.
-- **Feed**: RSS/Atom generated at startup and served at `/feed.xml`. Sitemap generated at startup and served at `/sitemap.xml`.
+- **Client IP**: `InitRouter` trusts `X-Forwarded-For` only from `server.trusted_proxies` (default loopback — cloudflared /
+  nginx on the same host). gin's default trusts everyone and takes the client-written first entry, which let anyone slip
+  past the login / like / search limits. `warnUntrustedProxy` logs once when a private-network proxy is not trusted.
+- **Security headers**: `middleware.SecurityHeaders` — nosniff, `Referrer-Policy`, `X-Frame-Options` (`DENY` under `/admin`).
+- **Cron jobs**: Heatmap data aggregation runs hourly via `robfig/cron`; the JSON stays in memory (`HeatMapHandler.JSON`).
+- **Feed / sitemap**: generated at startup and after post, page and project changes, kept in memory (`front.cachedDoc`) and
+  served with a weak ETag, `Last-Modified` (newest content, not generation time) and `Cache-Control: no-cache`, so polling
+  readers get 304s. The Atom feed carries the newest 20 posts (`feedEntries`) as `md2html.FeedHTML` (site HTML with
+  absolute links, no inline styles); entry ids stay bare slugs — changing them would make readers show every post again.
+  Nothing is written to the working directory any more; the tracked `sitemap.xml` in the repository root is a leftover
+  that production checkouts have modified, so deleting it would make their `git pull` fail — leave it.
 - **Logging**: Unified on `log/slog`. `internal/pkg/slogx/` provides a custom handler with trace ID support.
 - **Graceful shutdown**: `gin.RunGin` uses `http.Server` + `signal.NotifyContext(SIGINT, SIGTERM)`. Timeout configured via `server.graceful_shutdown_timeout`.
 - **Delete operations**: All delete routes use POST method to prevent CSRF via GET.

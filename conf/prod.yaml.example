@@ -41,3 +41,6 @@ server:
   host: ""
   http_port: 9091
   graceful_shutdown_timeout: 15s
+  # 可信的反向代理（IP 或网段）：只有它们转发的 X-Forwarded-For 会被当作访客 IP（登录 / 点赞 / 搜索按 IP 限流）。
+  # 留空 = 只信任本机（cloudflared / nginx 和 goblog 在同一台机器上）；代理跑在 Docker 等别处时写它的地址，如 ["172.18.0.0/16"]
+  trusted_proxies: []

@@ -21,6 +21,10 @@ type Article struct {
 type FeedConfig struct {
 	Title string
 	Host  string
+	// Description becomes the feed's subtitle.
+	Description string
+	// Updated is when the feed's content last changed; the generation time when zero.
+	Updated time.Time
 }
 
 func GenerateFeed(articles []Article, cfg FeedConfig) (string, error) {
@@ -33,9 +37,10 @@ func GenerateFeed(articles []Article, cfg FeedConfig) (string, error) {
 	feed := &feeds.Feed{
 		Title:       cfg.Title,
 		Link:        &feeds.Link{Href: cfg.Host + "/"},
-		Description: "",
+		Description: cfg.Description,
 		Author:      &feeds.Author{Name: cfg.Title},
 		Created:     now,
+		Updated:     cfg.Updated,
 	}
 
 	// 添加文章到 feed

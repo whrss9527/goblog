@@ -68,6 +68,11 @@ type (
 		Host                    string        `mapstructure:"host"`
 		HttpPort                uint32        `mapstructure:"http_port"`
 		GracefulShutdownTimeout time.Duration `mapstructure:"graceful_shutdown_timeout"`
+		// TrustedProxies are the addresses (IPs or CIDRs) of reverse proxies whose
+		// X-Forwarded-For / X-Real-IP headers are believed. Empty means this machine
+		// only (nginx or cloudflared on the same host). Anyone else could otherwise
+		// pick their own IP and slip past the rate limits of login, likes and search.
+		TrustedProxies []string `mapstructure:"trusted_proxies"`
 	}
 )
 

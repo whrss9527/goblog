@@ -56,3 +56,17 @@ func TestCSRFProtect_GETSetsToken(t *testing.T) {
 	token2 := generateToken()
 	assert.NotEqual(t, token, token2)
 }
+
+func TestSecurityHeaders(t *testing.T) {
+	router := gin.New()
+	router.Use(SecurityHeaders)
+	router.GET("/*path", func(c *gin.Context) { c.Status(200) })
+
+	for path, frame := range map[string]string{"/": "SAMEORIGIN", "/posts/x": "SAMEORIGIN", "/admin": "DENY", "/admin/posts/add": "DENY", "/administrator": "SAMEORIGIN"} {
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest("GET", path, nil))
+		assert.Equal(t, frame, w.Header().Get("X-Frame-Options"), path)
+		assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"), path)
+		assert.Equal(t, "strict-origin-when-cross-origin", w.Header().Get("Referrer-Policy"), path)
+	}
+}

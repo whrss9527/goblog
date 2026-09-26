@@ -2,9 +2,12 @@ package routers
 
 import (
 	"log"
+	"log/slog"
+	"net"
 	"net/http"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-contrib/sessions"
@@ -35,7 +38,23 @@ func NewServer(config *config.Config) *Server {
 	}
 }
 
+// localProxies are trusted when server.trusted_proxies is empty: nginx or
+// cloudflared running on the same machine.
+var localProxies = []string{"127.0.0.1", "::1"}
+
 func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
+	// Only proxies we know may tell us the client's address. gin believes any
+	// X-Forwarded-For by default, and its first entry is whatever the client
+	// wrote there (Cloudflare appends the real address, it does not replace).
+	proxies := localProxies
+	if server.config.Server != nil && len(server.config.Server.TrustedProxies) > 0 {
+		proxies = server.config.Server.TrustedProxies
+	}
+	if err := router.SetTrustedProxies(proxies); err != nil {
+		log.Fatal("server.trusted_proxies: ", err)
+	}
+	router.Use(warnUntrustedProxy(), middleware.SecurityHeaders)
+
 	secret := server.config.App.SessionSecret
 	if secret == "" {
 		secret = "goblog-default-secret-change-me"
@@ -57,8 +76,10 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 	}
 
 	feedHandler := front.NewFeedHandler(repo, server.config.App.Host, server.config.App.Name)
+	feedHandler.Description = server.config.App.Description
 	feedHandler.GenerateFeedXml()
 	sitemapHandler := front.NewSitemapHandler(repo, server.config.App.Host)
+	sitemapHandler.Pages = repo
 	sitemapHandler.Projects = repo
 	sitemapHandler.GenerateSitemap()
 	heatmapHandler := admin.NewHeatMapHandler(repo)
@@ -90,9 +111,11 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 	archiveHandler := front.NewArchiveHandler(repo, server.config)
 
 	pageHandler := admin.NewPageHandler(repo, server.config)
+	pageHandler.Sitemap = sitemapHandler
 	frontPageHandler := front.NewPageHandler(repo, server.config)
 	tagHandler := admin.NewTagHandler(repo, server.config)
 	frontTagHandler := front.NewTagHandler(repo, server.config)
+	frontTagHandler.Heatmap = heatmapHandler.JSON
 	bookHandler := admin.NewBookHandler(repo, server.config)
 	frontBookHandler := front.NewBookHandler(repo, server.config)
 
@@ -169,6 +192,26 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 		client.GET("/offline", pwaHandler.Offline)
 	}
 	return func() { repo.Close() }
+}
+
+// warnUntrustedProxy logs once when requests come through a proxy on the local
+// network that server.trusted_proxies does not name (typically cloudflared or
+// nginx in a Docker container): the rate limits then see the proxy's address
+// instead of the visitors', and all of them share one limit.
+func warnUntrustedProxy() gin.HandlerFunc {
+	var once sync.Once
+	return func(ctx *gin.Context) {
+		if ctx.GetHeader("X-Forwarded-For") != "" || ctx.GetHeader("X-Real-IP") != "" {
+			remote := ctx.RemoteIP()
+			if ip := net.ParseIP(remote); ip != nil && ip.IsPrivate() && ctx.ClientIP() == remote {
+				once.Do(func() {
+					slog.Warn("a proxy that is not in server.trusted_proxies forwards requests: all visitors share its rate limits; "+
+						"add its address to server.trusted_proxies if it is yours", "proxy", remote)
+				})
+			}
+		}
+		ctx.Next()
+	}
 }
 
 // githubStatsInterval is how often the numbers of the projects' repositories are refreshed.

@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"goblog/internal/config"
+	"goblog/internal/handler/front"
 	"goblog/internal/pkg/model"
 	"goblog/internal/pkg/view"
 	"goblog/internal/repository"
@@ -17,7 +18,9 @@ import (
 
 type PageHandler struct {
 	PageRepo repository.PageRepository
-	config   *config.Config
+	// Sitemap is regenerated after a page is added or removed (optional).
+	Sitemap *front.SitemapHandler
+	config  *config.Config
 }
 
 func NewPageHandler(pageRepo repository.PageRepository, config *config.Config) *PageHandler {
@@ -101,6 +104,7 @@ func (h *PageHandler) PageDelete(ctx *gin.Context) {
 		view.AdminRender(data, ctx.Writer, "401", h.config.App)
 		return
 	}
+	h.refreshSitemap()
 	http.Redirect(ctx.Writer, ctx.Request, "/admin/pages", http.StatusFound)
 }
 
@@ -142,5 +146,12 @@ func (h *PageHandler) PageSave(ctx *gin.Context) {
 		h.renderEditor(ctx, http.StatusUnprocessableEntity, savedId, page, saveErrorMessage(err))
 		return
 	}
+	h.refreshSitemap()
 	http.Redirect(ctx.Writer, ctx.Request, "/admin/pages?saved="+url.QueryEscape(page.Id), http.StatusFound)
+}
+
+func (h *PageHandler) refreshSitemap() {
+	if h.Sitemap != nil {
+		h.Sitemap.GenerateSitemap()
+	}
 }
