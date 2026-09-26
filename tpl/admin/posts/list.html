@@ -18,8 +18,13 @@
 {{if eq .sync "ok"}}
 <div class="alert alert-success admin-note" role="status">{{if gt .sync_pulled 0}}已同步：拉取了 {{.sync_pulled}} 个新提交，文章、页面和项目都已重新加载{{else}}内容仓库已经是最新的{{end}}{{with .sync_head}}（当前 <code>{{.}}</code>）{{end}}。</div>
 {{else if eq .sync "conflict"}}
-<div class="alert alert-danger admin-note" role="alert"><strong>同步失败：服务器上和远程仓库里改了同一处内容。</strong>服务器保留了自己的版本、照常运行；
-    需要登录服务器，在数据目录里执行 <code>git pull --rebase</code> 手动合并，再重启 goblog。</div>
+<div class="alert alert-danger admin-note" role="alert"><strong>同步失败：服务器上和远程仓库里改了同一处内容。</strong>服务器保留了自己的版本、照常运行，但在冲突解决之前同步会一直失败。
+    解决办法：停止 goblog，在数据目录里执行 <code>git pull --rebase --autostash</code>，按提示解决冲突（<code>git rebase --continue</code>）并 <code>git push</code>，再启动 goblog。</div>
+{{else if eq .sync "busy"}}
+<div class="alert alert-danger admin-note" role="alert"><strong>没有同步：数据目录正处在另一个 git 操作中</strong>——手动的合并或变基还没完成、HEAD 处于分离状态，或者中断的 git 留下了锁文件，详情见服务器日志。
+    处理好之前服务器不会提交或同步；这期间在后台保存的内容都在数据目录里，之后会一起提交。</div>
+{{else if eq .sync "stale"}}
+<div class="alert alert-danger admin-note" role="alert"><strong>拉取到了新内容，但没能加载</strong>（多半是某个文件格式有误，见页面顶部的提示）。网站继续显示之前的内容，后台暂时不能保存；在内容仓库里修好并推送后再同步一次即可。</div>
 {{else if eq .sync "failed"}}
 <div class="alert alert-warning admin-note" role="alert">同步失败：连不上远程仓库或没有权限，详情见服务器日志。稍后会自动再试。</div>
 {{else if eq .sync "noremote"}}

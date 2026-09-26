@@ -74,8 +74,11 @@ func (r *FileRepository) GetBook(id int) (model.Book, error) {
 }
 
 func (r *FileRepository) BookSave(book model.Book) (int, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	unlock, lockErr := r.lockWrite()
+	if lockErr != nil {
+		return 0, lockErr
+	}
+	defer unlock()
 
 	now := time.Now()
 
@@ -105,8 +108,11 @@ func (r *FileRepository) BookSave(book model.Book) (int, error) {
 }
 
 func (r *FileRepository) BookDelete(id int) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	unlock, lockErr := r.lockWrite()
+	if lockErr != nil {
+		return lockErr
+	}
+	defer unlock()
 
 	for i, b := range r.books {
 		if b.Id == id {

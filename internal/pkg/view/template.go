@@ -150,6 +150,16 @@ func SetProjectCount(n int) {
 	projectCount.Store(int64(n))
 }
 
+// contentProblem says why the admin cannot save at the moment ("" when it
+// can); the router points it at the repository.
+var contentProblem atomic.Pointer[func() string]
+
+// SetContentProblemSource tells the admin pages where to ask whether saving is
+// refused (filestore.FileRepository.ContentProblem).
+func SetContentProblemSource(fn func() string) {
+	contentProblem.Store(&fn)
+}
+
 // HasProjects reports whether at least one project exists.
 func HasProjects() bool {
 	return projectCount.Load() > 0
@@ -247,6 +257,10 @@ func AdminRenderStatus(status int, data map[string]any, w http.ResponseWriter, t
 	data["site_version"] = version.Version
 	data["this_year"] = time.Now().Year()
 	data["account_warning"] = appConf.AccountInContentRepo()
+	data["content_problem"] = ""
+	if fn := contentProblem.Load(); fn != nil {
+		data["content_problem"] = (*fn)()
+	}
 
 	t, ok := adminTemplates[tpl]
 	if !ok {

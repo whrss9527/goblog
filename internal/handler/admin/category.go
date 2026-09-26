@@ -87,7 +87,7 @@ func (h *CategoryHandler) CategoryDelete(ctx *gin.Context) {
 			return
 		}
 		slog.Error("delete category failed", "err", err)
-		h.renderList(ctx, http.StatusUnprocessableEntity, "删除失败：这个分类可能已经不存在了，刷新页面看看。")
+		h.renderList(ctx, http.StatusUnprocessableEntity, failureMessage(err, "删除失败：这个分类可能已经不存在了，刷新页面看看。"))
 		return
 	}
 	http.Redirect(ctx.Writer, ctx.Request, "/admin/categories", http.StatusFound)
@@ -105,7 +105,7 @@ func (h *CategoryHandler) CategorySave(ctx *gin.Context) {
 	_, err := h.CategoryRepo.CategorySave(category)
 	if err != nil {
 		slog.Error("save category failed", "err", err)
-		h.renderForm(ctx, http.StatusUnprocessableEntity, category, "保存失败，请稍后重试。")
+		h.renderForm(ctx, http.StatusUnprocessableEntity, category, failureMessage(err, "保存失败，请稍后重试。"))
 		return
 	}
 	http.Redirect(ctx.Writer, ctx.Request, "/admin/categories", http.StatusFound)

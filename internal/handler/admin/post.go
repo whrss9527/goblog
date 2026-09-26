@@ -108,7 +108,8 @@ func (h *PostHandler) SyncNow(ctx *gin.Context) {
 		http.Redirect(ctx.Writer, ctx.Request, "/admin?sync=noremote", http.StatusFound)
 		return
 	}
-	c, cancel := context.WithTimeout(ctx.Request.Context(), time.Minute)
+	// not the request's context: a closed tab must not kill git halfway through a rebase
+	c, cancel := context.WithTimeout(context.WithoutCancel(ctx.Request.Context()), 2*time.Minute)
 	defer cancel()
 	result, err := h.Sync.Sync(c)
 	outcome := "ok"
@@ -117,6 +118,11 @@ func (h *PostHandler) SyncNow(ctx *gin.Context) {
 		outcome = "conflict"
 	case errors.Is(err, filestore.ErrNoRemote):
 		outcome = "noremote"
+	case errors.Is(err, filestore.ErrWorktreeBusy):
+		slog.Error("sync content repository refused", "err", err)
+		outcome = "busy"
+	case errors.Is(err, filestore.ErrContentStale):
+		outcome = "stale"
 	case err != nil:
 		slog.Error("sync content repository failed", "err", err)
 		outcome = "failed"
@@ -321,8 +327,9 @@ func (h *PostHandler) PostDelete(ctx *gin.Context) {
 	post.Id = ctx.Param("id")
 	_, err := h.PostRepo.PostDelete(post)
 	if err != nil {
+		slog.Error("delete post failed", "err", err)
 		data := make(map[string]interface{})
-		data["msg"] = "删除失败，请重试"
+		data["msg"] = failureMessage(err, "删除失败，请重试")
 		view.AdminRender(data, ctx.Writer, "401", h.config.App)
 		return
 	}

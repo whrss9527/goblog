@@ -61,3 +61,7 @@ server:
   # 可信的反向代理（IP 或网段）：只有它们转发的 X-Forwarded-For 会被当作访客 IP（登录 / 点赞 / 搜索按 IP 限流）。
   # 留空 = 只信任本机（cloudflared / nginx 和 goblog 在同一台机器上）；代理跑在 Docker 等别处时写它的地址，如 ["172.18.0.0/16"]
   trusted_proxies: []
+  # 访客 IP 从哪个请求头读取。留空 = 先 X-Forwarded-For、再 X-Real-IP，适合会设置或追加 X-Forwarded-For 的代理
+  # （cloudflared、nginx 的 $proxy_add_x_forwarded_for）。nginx 只写了 X-Real-IP 时填 "X-Real-IP"：
+  # 否则访客自己伪造的 X-Forwarded-For 会被原样转发、并被优先采用
+  client_ip_header: ""

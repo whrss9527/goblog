@@ -44,8 +44,11 @@ func (r *FileRepository) GetPage(ident string) (model.Page, error) {
 }
 
 func (r *FileRepository) PageDelete(page model.Page) (string, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	unlock, lockErr := r.lockWrite()
+	if lockErr != nil {
+		return "", lockErr
+	}
+	defer unlock()
 
 	for i, p := range r.pages {
 		if p.Id == page.Id {
@@ -59,8 +62,11 @@ func (r *FileRepository) PageDelete(page model.Page) (string, error) {
 }
 
 func (r *FileRepository) PageSave(page model.Page) (string, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	unlock, lockErr := r.lockWrite()
+	if lockErr != nil {
+		return "", lockErr
+	}
+	defer unlock()
 
 	if !safeSlug(page.Id) { // the id becomes pages/<id>.md
 		return "", ErrInvalidSlug

@@ -53,6 +53,11 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 	if err := router.SetTrustedProxies(proxies); err != nil {
 		log.Fatal("server.trusted_proxies: ", err)
 	}
+	// A proxy that only writes X-Real-IP passes the visitor's own X-Forwarded-For
+	// through, and gin would read that first: then only its header may be believed.
+	if server.config.Server != nil && server.config.Server.ClientIPHeader != "" {
+		router.RemoteIPHeaders = []string{server.config.Server.ClientIPHeader}
+	}
 	router.Use(warnUntrustedProxy(), middleware.SecurityHeaders)
 
 	secret := server.config.App.SessionSecret
@@ -74,6 +79,7 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 	if err != nil {
 		log.Fatal("init file repository failed: ", err)
 	}
+	view.SetContentProblemSource(repo.ContentProblem)
 
 	feedHandler := front.NewFeedHandler(repo, server.config.App.Host, server.config.App.Name)
 	feedHandler.Description = server.config.App.Description

@@ -102,6 +102,13 @@ type (
 		// only (nginx or cloudflared on the same host). Anyone else could otherwise
 		// pick their own IP and slip past the rate limits of login, likes and search.
 		TrustedProxies []string `mapstructure:"trusted_proxies"`
+		// ClientIPHeader names the one header the trusted proxies put the visitor's
+		// address in ("X-Real-IP", "CF-Connecting-IP"). Empty: X-Forwarded-For,
+		// then X-Real-IP — fine for proxies that set or append X-Forwarded-For
+		// (cloudflared, nginx with $proxy_add_x_forwarded_for). A proxy that only
+		// sets X-Real-IP needs "X-Real-IP" here: it passes on whatever
+		// X-Forwarded-For the visitor sent, and that would be read first.
+		ClientIPHeader string `mapstructure:"client_ip_header"`
 	}
 )
 

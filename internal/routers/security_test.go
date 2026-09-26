@@ -65,6 +65,32 @@ func TestTrustedProxiesFromConfig(t *testing.T) {
 	}
 }
 
+// nginx configured with only "proxy_set_header X-Real-IP $remote_addr" passes
+// the visitor's own X-Forwarded-For through, and gin reads that one first.
+func TestClientIPHeaderFromConfig(t *testing.T) {
+	h := newTestServer(t, func(c *config.Config) { c.Server.ClientIPHeader = "X-Real-IP" })
+	attempt := func(realIP, forged string) int {
+		form := url.Values{"email": {"nobody@example.com"}, "password": {"wrong password"}}
+		req := httptest.NewRequest(http.MethodPost, "/admin/sign-in", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.RemoteAddr = "127.0.0.1:5000"
+		req.Header.Set("X-Real-IP", realIP)
+		req.Header.Set("X-Forwarded-For", forged)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	for i := 1; i <= 6; i++ {
+		status := attempt("198.51.100.7", "10.9.8."+strconv.Itoa(i))
+		if i == 6 && status != http.StatusTooManyRequests {
+			t.Fatalf("a forged X-Forwarded-For is ignored, attempt 6 = %d", status)
+		}
+	}
+	if status := attempt("198.51.100.8", "10.9.8.1"); status != http.StatusUnauthorized {
+		t.Errorf("another visitor behind the proxy has a limit of its own, got %d", status)
+	}
+}
+
 func TestSecurityHeadersOnPages(t *testing.T) {
 	h := newTestServer(t)
 	for target, frame := range map[string]string{"/": "SAMEORIGIN", "/posts/hello": "SAMEORIGIN", "/admin/login": "DENY", "/nope": "SAMEORIGIN"} {

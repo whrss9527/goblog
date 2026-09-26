@@ -22,14 +22,23 @@ type cachedDoc struct {
 }
 
 // set replaces the document. modified is when its content last changed (the
-// newest post, not the moment it was generated), so restarts do not make it look new.
+// newest post, not the moment it was generated), so restarts do not make it
+// look new. A document that changed without a newer post (one was deleted, or
+// an old one edited) is dated now: a client asking If-Modified-Since would be
+// told its old copy is current otherwise.
 func (d *cachedDoc) set(body []byte, modified time.Time) {
 	sum := sha1.Sum(body)
+	etag := `W/"` + hex.EncodeToString(sum[:8]) + `"` // weak: the gzip middleware re-encodes the body
+	modified = modified.UTC().Truncate(time.Second)
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	d.body = body
-	d.etag = `W/"` + hex.EncodeToString(sum[:8]) + `"` // weak: the gzip middleware re-encodes the body
-	d.modified = modified.UTC().Truncate(time.Second)
+	switch {
+	case etag == d.etag:
+		modified = d.modified // the same document keeps its validators
+	case d.etag != "" && !modified.After(d.modified):
+		modified = time.Now().UTC().Truncate(time.Second)
+	}
+	d.body, d.etag, d.modified = body, etag, modified
 }
 
 func (d *cachedDoc) get() (body []byte, etag string, modified time.Time) {

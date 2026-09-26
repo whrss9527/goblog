@@ -80,8 +80,11 @@ func (r *FileRepository) ProjectSave(project model.Project) (int, error) {
 		return 0, ErrProjectNameEmpty
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	unlock, lockErr := r.lockWrite()
+	if lockErr != nil {
+		return 0, lockErr
+	}
+	defer unlock()
 
 	now := time.Now().Truncate(time.Second)
 	updated := make([]model.Project, len(r.projects), len(r.projects)+1)
@@ -115,8 +118,11 @@ func (r *FileRepository) ProjectSave(project model.Project) (int, error) {
 }
 
 func (r *FileRepository) ProjectDelete(id int) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	unlock, lockErr := r.lockWrite()
+	if lockErr != nil {
+		return lockErr
+	}
+	defer unlock()
 
 	index := slices.IndexFunc(r.projects, func(p model.Project) bool { return p.Id == id })
 	if index < 0 {

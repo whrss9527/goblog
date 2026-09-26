@@ -165,7 +165,7 @@ func (h *ProjectHandler) ProjectSave(ctx *gin.Context) {
 	}
 	if _, err := h.ProjectRepo.ProjectSave(project); err != nil {
 		slog.Error("save project failed", "err", err, "name", project.Name)
-		h.renderForm(ctx, http.StatusUnprocessableEntity, project, "保存失败，请稍后重试。")
+		h.renderForm(ctx, http.StatusUnprocessableEntity, project, failureMessage(err, "保存失败，请稍后重试。"))
 		return
 	}
 	h.afterChange()
@@ -183,7 +183,7 @@ func (h *ProjectHandler) ProjectDelete(ctx *gin.Context) {
 		return
 	case err != nil:
 		slog.Error("delete project failed", "id", id, "err", err)
-		h.renderList(ctx, http.StatusUnprocessableEntity, fmt.Sprintf("删除「%s」失败，请稍后重试。", project.Name))
+		h.renderList(ctx, http.StatusUnprocessableEntity, failureMessage(err, fmt.Sprintf("删除「%s」失败，请稍后重试。", project.Name)))
 		return
 	}
 	h.afterChange()

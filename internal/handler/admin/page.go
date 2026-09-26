@@ -100,7 +100,8 @@ func (h *PageHandler) PageDelete(ctx *gin.Context) {
 	_, err := h.PageRepo.PageDelete(page)
 	if err != nil {
 		data := make(map[string]any)
-		data["msg"] = "删除失败，请重试"
+		slog.Error("delete page failed", "err", err)
+		data["msg"] = failureMessage(err, "删除失败，请重试")
 		view.AdminRender(data, ctx.Writer, "401", h.config.App)
 		return
 	}

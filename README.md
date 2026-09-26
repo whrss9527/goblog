@@ -147,7 +147,7 @@ cd /opt/goblog && git pull && make build && systemctl restart goblog
 | robots.txt | 1.9.1 起只屏蔽 `/admin/`、`/api/`、`/random`、`/offline`，并附上 sitemap 地址。此前的内容是 `Disallow: /`（拒绝所有搜索引擎）；如果那是有意的，把仓库根目录的 `robots.txt` 改回去即可 |
 | Service Worker | 访客的浏览器会注册 `/sw.js`（离线阅读）。反向代理 / Cloudflare 不要给 `/sw.js` 加长缓存（服务端返回的是 `no-cache`）。想关掉就设 `pwa: false` —— 它会让已安装的 Service Worker 自行注销并清空缓存；**回滚到 1.7 之前的版本，也请先这样跑几天** |
 | 内容仓库的新文件 | `likes.json`（点赞数，和 `views.json` 一样每小时提交一次）、`projects.json`（项目，添加第一个项目时生成）。草稿在 `<data_dir>/.drafts/`，不进仓库 |
-| 反向代理 | 1.12 起只信任本机代理转发的访客 IP。cloudflared / nginx 不在本机（如 Docker 容器）时，把它的地址加进 `server.trusted_proxies`，见「反向代理与访客 IP」 |
+| 反向代理 | 1.12 起只信任本机代理转发的访客 IP。cloudflared / nginx 不在本机（如 Docker 容器）时，把它的地址加进 `server.trusted_proxies`；nginx 只设置了 `X-Real-IP`、没有设置 `X-Forwarded-For` 时，再加上 `server.client_ip_header: "X-Real-IP"`，见「反向代理与访客 IP」 |
 | 内容仓库同步 | 1.13 起运行时每 10 分钟和远程同步一次（`git_sync`），推送被拒时自动变基后重推。数据目录里如果有手动改过、没提交的文件，同步前会被提交（和后台保存时的 `git add -A` 一样）。想要推送后立刻上线，配置 `git_webhook_secret` 和 GitHub Webhook |
 | 出站网络 | 1.11 起服务器会访问 `api.github.com`（只读公开数据：项目的 Star 等，以及后台导入仓库时）。没有项目就不会请求；不想要可以设 `github_stats: false` |
 | 旧标签 | 1.9 之前用「`a, b`」这种写法输入标签，会产生带前导空格的重复标签（如 `" blog"` 和 `"blog"` 并存）。后台「标签」页现在可以改名 / 删除：把带空格的那个**改名成正常的名字**，两个标签就会合并，文章自动换到留下的那个标签下 |
@@ -183,6 +183,7 @@ server:
   http_port: 9091
   graceful_shutdown_timeout: 15s
   trusted_proxies: []          # 可选：反向代理不在本机时填它的地址（见下文「反向代理与访客 IP」）
+  client_ip_header: ""         # 可选：代理只写 X-Real-IP 时填 "X-Real-IP"（见下文）
 ```
 
 ### 反向代理与访客 IP
@@ -192,6 +193,11 @@ server:
 
 如果代理在别处（比如 cloudflared / nginx 跑在 Docker 容器里、或者另一台内网机器），把它的地址或网段写进 `server.trusted_proxies`，
 例如 `["172.18.0.0/16"]`。不写的话所有访客会被当成同一个 IP、共用一份限流额度；goblog 发现这种情况会在日志里提醒一次。
+
+默认先读 `X-Forwarded-For`（取代理追加的那一项，访客自己写的部分不算），没有时再读 `X-Real-IP`。cloudflared 和按常见写法配置的
+nginx（`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`）都没问题。**nginx 只写了 `proxy_set_header X-Real-IP $remote_addr;`**
+的话，访客自己伪造的 `X-Forwarded-For` 会被原样转发、并被优先采用，请在配置里加上 `server.client_ip_header: "X-Real-IP"`
+（或者在 nginx 里补上上面那行 `X-Forwarded-For`）。
 
 ### 后台账号放在配置文件里（推荐）
 
@@ -248,8 +254,14 @@ JPEG 照片在浏览器里先缩到长边 2000 像素再上传，重新编码后
   GitHub 页面 Settings → Webhooks → Add webhook：Payload URL 填 `https://你的域名/api/hooks/git`，Content type 选 `application/json`，
   Secret 填同一个值，事件选 “Just the push event”。签名不对的请求一律拒绝；没配置 secret 时这个地址不存在。
 - **冲突**：服务器和远程改了同一处（比如同时在后台和电脑上改了同一篇文章），服务器保留自己的版本继续运行，不会强推覆盖远程；
-  后台会提示，需要登录服务器在数据目录执行 `git pull --rebase` 手动合并。推送上去的文件格式有误（比如 JSON 写坏了）时，
-  服务器继续用内存里的旧内容，日志里会说明原因。
+  后台会提示。解决办法：停止 goblog，在数据目录执行 `git pull --rebase --autostash`，解决冲突（`git rebase --continue`）并
+  `git push`，再启动 goblog。`views.json` / `likes.json` 上的冲突不需要人管，服务器直接用内存里的数字。
+- **推送上去的文件有错**（比如 JSON 写坏了）：网站继续显示内存里的旧内容，**后台暂时不能保存**（否则会用旧数据覆盖刚推送的改动），
+  每个后台页面顶部都会说明原因；在内容仓库里修好并推送，下一次同步加载成功后自动恢复。
+- **强推（force push）**：从远程删掉的提交（比如误推的密钥）不会被服务器再推回去——服务器只重放自己的提交，
+  而且只在远程仍是它上次看到的状态时才推送。
+- 数据目录正处在手动的合并 / 变基中、HEAD 处于分离状态时，服务器不提交也不同步（日志和后台会说明）；
+  被强行终止的同步留下的变基和 `.git/index.lock` 会在下次启动时自动清理。
 - 以前服务器推送 `views.json` 时如果远程已经有了新提交，推送会一直失败，重启时的 `git pull --ff-only` 也会放弃，只能手动处理；现在推送被拒后会自动同步再推送，启动时也会先把本地未推送的提交变基到远程之上。
 
 ### 项目

@@ -57,8 +57,11 @@ func (r *FileRepository) GetCategoryIdsByName(name string) ([]string, error) {
 }
 
 func (r *FileRepository) CategoryDelete(category model.Category) (int, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	unlock, lockErr := r.lockWrite()
+	if lockErr != nil {
+		return 0, lockErr
+	}
+	defer unlock()
 
 	inUse := 0
 	for _, post := range r.posts {
@@ -84,8 +87,11 @@ func (r *FileRepository) CategoryDelete(category model.Category) (int, error) {
 }
 
 func (r *FileRepository) CategorySave(category model.Category) (int, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	unlock, lockErr := r.lockWrite()
+	if lockErr != nil {
+		return 0, lockErr
+	}
+	defer unlock()
 
 	category.Name = strings.TrimSpace(category.Name)
 	if category.Name == "" {

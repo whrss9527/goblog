@@ -18,10 +18,50 @@ import (
 	"goblog/internal/config"
 )
 
+// laptop is a clone of the content repository somewhere else: the author's
+// laptop, pushing to the same "GitHub" remote as the server.
+type laptop struct {
+	t   *testing.T
+	dir string
+}
+
+func (l *laptop) git(args ...string) {
+	l.t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = l.dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		l.t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}
+
+// push writes files (relative to the repository), commits and pushes them.
+func (l *laptop) push(message string, files map[string]string) {
+	l.t.Helper()
+	l.git("pull", "-q", "--rebase")
+	for name, content := range files {
+		path := filepath.Join(l.dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			l.t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			l.t.Fatal(err)
+		}
+	}
+	l.git("add", "-A")
+	l.git("commit", "-q", "-m", message)
+	l.git("push", "-q")
+}
+
+func (l *laptop) pushPost(slug, title string) {
+	l.t.Helper()
+	content := fmt.Sprintf("---\ntitle: %q\nstatus: 1\ncreated_at: %s\nupdated_at: %[2]s\ncategory_id: 1\nis_top: 0\ntag_ids: [1]\ndescription: \"pushed\"\nword_count: 3\n---\n\n写在笔记本上。\n",
+		title, time.Now().Format(time.RFC3339))
+	l.push("post: "+slug, map[string]string{"posts/" + slug + ".md": content})
+}
+
 // gitBacked turns the test data directory into a clone of a bare "GitHub"
-// repository and returns a function that pushes a new post to that remote from
-// somewhere else (the author's laptop).
-func gitBacked(t *testing.T, pushPost *func(slug, title string)) func(*config.Config) {
+// repository and sets author to a laptop that pushes to that remote.
+func gitBacked(t *testing.T, author **laptop) func(*config.Config) {
 	return func(c *config.Config) {
 		if _, err := exec.LookPath("git"); err != nil {
 			t.Skip("git not installed")
@@ -38,7 +78,6 @@ func gitBacked(t *testing.T, pushPost *func(slug, title string)) func(*config.Co
 		}
 		root := filepath.Dir(c.App.DataDir)
 		remote := filepath.Join(root, "remote.git")
-		laptop := filepath.Join(root, "laptop")
 		data := c.App.DataDir
 		run(root, "init", "-q", "--bare", "-b", "main", remote)
 		run(data, "init", "-q", "-b", "main")
@@ -48,21 +87,11 @@ func gitBacked(t *testing.T, pushPost *func(slug, title string)) func(*config.Co
 		run(data, "commit", "-q", "-m", "initial content")
 		run(data, "remote", "add", "origin", remote)
 		run(data, "push", "-q", "-u", "origin", "main")
-		run(root, "clone", "-q", remote, laptop)
-		run(laptop, "config", "user.name", "laptop")
-		run(laptop, "config", "user.email", "laptop@example.com")
-
-		*pushPost = func(slug, title string) {
-			content := fmt.Sprintf("---\ntitle: %q\nstatus: 1\ncreated_at: %s\nupdated_at: %[2]s\ncategory_id: 1\nis_top: 0\ntag_ids: [1]\ndescription: \"pushed\"\nword_count: 3\n---\n\n写在笔记本上。\n",
-				title, time.Now().Format(time.RFC3339))
-			if err := os.WriteFile(filepath.Join(laptop, "posts", slug+".md"), []byte(content), 0o644); err != nil {
-				t.Fatal(err)
-			}
-			run(laptop, "add", "-A")
-			run(laptop, "commit", "-q", "-m", "post: "+slug)
-			run(laptop, "pull", "-q", "--rebase")
-			run(laptop, "push", "-q")
-		}
+		l := &laptop{t: t, dir: filepath.Join(root, "laptop")}
+		run(root, "clone", "-q", remote, l.dir)
+		l.git("config", "user.name", "laptop")
+		l.git("config", "user.email", "laptop@example.com")
+		*author = l
 	}
 }
 
@@ -81,8 +110,8 @@ func signedHook(h http.Handler, secret, event, body string) *httptest.ResponseRe
 }
 
 func TestGitWebhookSyncsRightAway(t *testing.T) {
-	var pushPost func(slug, title string)
-	h := newTestServer(t, gitBacked(t, &pushPost), func(c *config.Config) {
+	var author *laptop
+	h := newTestServer(t, gitBacked(t, &author), func(c *config.Config) {
 		c.App.GitWebhookSecret = "hook-secret"
 		c.App.GitSync = "off" // only the webhook may bring the post in
 	})
@@ -97,7 +126,7 @@ func TestGitWebhookSyncsRightAway(t *testing.T) {
 		t.Errorf("ping = %d, want 200", rec.Code)
 	}
 
-	pushPost("from-laptop", "笔记本上写的")
+	author.pushPost("from-laptop", "笔记本上写的")
 	if rec := signedHook(h, "hook-secret", "push", `{"ref":"refs/heads/main"}`); rec.Code != http.StatusAccepted {
 		t.Fatalf("push hook = %d, want 202", rec.Code)
 	}
@@ -130,15 +159,15 @@ func TestGitWebhookNeedsASecret(t *testing.T) {
 }
 
 func TestAdminSyncButton(t *testing.T) {
-	var pushPost func(slug, title string)
-	a := newAdminClient(t, gitBacked(t, &pushPost), func(c *config.Config) { c.App.GitSync = "off" })
+	var author *laptop
+	a := newAdminClient(t, gitBacked(t, &author), func(c *config.Config) { c.App.GitSync = "off" })
 
 	_, body, _ := a.get("/admin/")
 	if !strings.Contains(body, `action="/admin/sync"`) {
 		t.Fatalf("a git-backed blog offers the sync button")
 	}
 
-	pushPost("synced", "同步进来的文章")
+	author.pushPost("synced", "同步进来的文章")
 	status, _, location := a.post("/admin/sync", url.Values{"_csrf": {a.token("/admin/")}})
 	if status != http.StatusFound || !strings.HasPrefix(location, "/admin?") || !strings.Contains(location, "sync=ok") || !strings.Contains(location, "pulled=1") {
 		t.Fatalf("sync = %d -> %q", status, location)
@@ -167,5 +196,50 @@ func TestAdminSyncButtonHiddenWithoutGit(t *testing.T) {
 	a := newAdminClient(t)
 	if _, body, _ := a.get("/admin/"); strings.Contains(body, `action="/admin/sync"`) {
 		t.Errorf("a data directory without git has nothing to sync")
+	}
+}
+
+// Content pushed from elsewhere that cannot be loaded keeps the site on the
+// previous version and stops the admin from saving over it, visibly.
+func TestAdminWhileContentIsStale(t *testing.T) {
+	var author *laptop
+	a := newAdminClient(t, gitBacked(t, &author), func(c *config.Config) { c.App.GitSync = "off" })
+	author.push("broken categories", map[string]string{"categories.json": `[{"id":1,"name":"技术"`})
+
+	status, _, location := a.post("/admin/sync", url.Values{"_csrf": {a.token("/admin/")}})
+	if status != http.StatusFound || !strings.Contains(location, "sync=stale") {
+		t.Fatalf("sync = %d -> %q", status, location)
+	}
+	_, body, _ := a.get("/admin/?sync=stale")
+	for _, want := range []string{"拉取到了新内容，但没能加载", "后台暂时不能保存：内容仓库里有别处推送来的改动没能加载", "could not be loaded"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the post list shows %q", want)
+		}
+	}
+	if _, body, _ = a.get("/admin/tags"); !strings.Contains(body, "admin-content-problem") {
+		t.Errorf("every admin list page carries the banner")
+	}
+
+	status, body, _ = a.post("/admin/categories/save", url.Values{"_csrf": {a.token("/admin/categories/add")}, "name": {"新分类"}})
+	if status != http.StatusUnprocessableEntity || !strings.Contains(body, "后台暂时不能保存") {
+		t.Errorf("saving a category = %d, want 422 with the reason", status)
+	}
+	form := url.Values{"_csrf": {a.token("/admin/posts/add")}, "title": {"写不进去"}, "identity": {"stale-save"}, "content": {"正文"}, "category": {"1"}}
+	status, body, _ = a.post("/admin/posts/save", form)
+	if status != http.StatusUnprocessableEntity || !strings.Contains(body, "后台暂时不能保存") || !strings.Contains(body, "写不进去") {
+		t.Errorf("saving a post = %d, want the editor again with the reason and the text", status)
+	}
+
+	author.push("fix categories", map[string]string{"categories.json": `[{"id":1,"name":"技术"}]`})
+	status, _, location = a.post("/admin/sync", url.Values{"_csrf": {a.token("/admin/")}})
+	if status != http.StatusFound || !strings.Contains(location, "sync=ok") {
+		t.Fatalf("sync after the fix = %d -> %q", status, location)
+	}
+	if _, body, _ = a.get("/admin/"); strings.Contains(body, "admin-content-problem") {
+		t.Errorf("the banner goes away once the content loads")
+	}
+	status, _, _ = a.post("/admin/categories/save", url.Values{"_csrf": {a.token("/admin/categories/add")}, "name": {"新分类"}})
+	if status != http.StatusFound {
+		t.Errorf("saving works again, got %d", status)
 	}
 }

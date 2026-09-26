@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,10 +40,18 @@ type FileRepository struct {
 	nextProjectId  int
 
 	gitEnabled bool
-	gitMu      sync.Mutex
-	sync       syncState
-	done       chan struct{}
-	closeOnce  sync.Once
+	// gitMu serialises git commands; wmu keeps writes to the working tree away
+	// from commits, rebases and reloads. Lock order: gitMu → wmu → mu (see sync.go).
+	gitMu sync.Mutex
+	wmu   sync.Mutex
+	sync  syncState
+	// pending counts the background commits and pushes; Close waits for them.
+	// No new ones start once closing is set (both guarded by pendingMu).
+	pending   sync.WaitGroup
+	pendingMu sync.Mutex
+	closing   bool
+	done      chan struct{}
+	closeOnce sync.Once
 }
 
 func NewFileRepository(dataDir, gitRepo, gitToken string) (*FileRepository, error) {
@@ -65,6 +74,13 @@ func NewFileRepository(dataDir, gitRepo, gitToken string) (*FileRepository, erro
 
 	if err := r.loadAll(); err != nil {
 		return nil, err
+	}
+	if r.gitEnabled {
+		head, err := r.git(context.Background(), "rev-parse", "HEAD")
+		if err != nil {
+			slog.Warn("could not read the checked-out commit", "err", err)
+		}
+		r.sync.loadedHead = head
 	}
 	// JSON files are written through a temporary sibling (writeFileAtomic); a
 	// "git add -A" at the wrong moment must not commit one
@@ -91,9 +107,11 @@ func (r *FileRepository) ensureDataDir(gitRepo, gitToken string) error {
 		// used to give up here for good once both sides had new commits)
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		pulled, _, err := r.integrateLocked(ctx, false)
+		pulled, err := r.integrateAtStartup(ctx)
 		switch {
 		case errors.Is(err, ErrNoRemote):
+		case errors.Is(err, ErrWorktreeBusy), errors.Is(err, ErrSyncConflict):
+			slog.Error("content repository: not synced at startup, using local data", "err", err)
 		case err != nil:
 			slog.Warn("git pull failed, using local data", "err", err)
 		default:
@@ -402,11 +420,15 @@ func (r *FileRepository) writeFileAtomic(filename string, data []byte) error {
 }
 
 func (r *FileRepository) flushViews() error {
+	r.wmu.Lock()
+	defer r.wmu.Unlock()
+	return r.flushViewsLocked()
+}
+
+// flushViewsLocked writes the view counters. The caller holds wmu.
+func (r *FileRepository) flushViewsLocked() error {
 	r.mu.RLock()
-	viewsCopy := make(map[string]int, len(r.views))
-	for k, v := range r.views {
-		viewsCopy[k] = v
-	}
+	viewsCopy := maps.Clone(r.views)
 	r.mu.RUnlock()
 	return r.saveJSON("views.json", viewsCopy)
 }
@@ -414,11 +436,15 @@ func (r *FileRepository) flushViews() error {
 // flushLikes persists the like counters. Blogs that never received a like do
 // not get an empty likes.json added to their data repository.
 func (r *FileRepository) flushLikes() error {
+	r.wmu.Lock()
+	defer r.wmu.Unlock()
+	return r.flushLikesLocked()
+}
+
+// flushLikesLocked is flushLikes for a caller that holds wmu.
+func (r *FileRepository) flushLikesLocked() error {
 	r.mu.RLock()
-	likesCopy := make(map[string]int, len(r.likes))
-	for k, v := range r.likes {
-		likesCopy[k] = v
-	}
+	likesCopy := maps.Clone(r.likes)
 	r.mu.RUnlock()
 	if len(likesCopy) == 0 {
 		return nil
@@ -472,11 +498,25 @@ func (r *FileRepository) Done() <-chan struct{} {
 	return r.done
 }
 
-// Close stops the background loops and writes the counters one last time. It
-// may be called more than once.
+// Close stops the background loops, gives the commits and pushes still
+// running a moment to finish (a deploy often restarts the server right after a
+// save) and writes the counters one last time. It may be called more than once.
 func (r *FileRepository) Close() {
 	r.closeOnce.Do(func() {
 		close(r.done)
+		r.pendingMu.Lock()
+		r.closing = true
+		r.pendingMu.Unlock()
+		finished := make(chan struct{})
+		go func() {
+			r.pending.Wait()
+			close(finished)
+		}()
+		select {
+		case <-finished:
+		case <-time.After(30 * time.Second):
+			slog.Warn("shutting down while a git commit or push is still running")
+		}
 		if err := r.flushViews(); err != nil {
 			slog.Error("final flush views failed", "err", err)
 		} else {
@@ -488,8 +528,8 @@ func (r *FileRepository) Close() {
 	})
 }
 
-// gitPushWithRetry runs `git push` from r.dataDir. A push rejected because the
-// remote has commits this server does not (a post pushed from a laptop) is
+// gitPushWithRetry pushes the data directory (pushLocked). A push rejected
+// because the remote changed (a post pushed from a laptop, a force push) is
 // followed by a sync — fetch, rebase, reload — and pushed again right away;
 // other failures are retried with exponential backoff. The push includes any
 // previously-failed commits, so we never lose data — at worst the next
@@ -499,85 +539,83 @@ func (r *FileRepository) gitPushWithRetry() {
 	const maxAttempts = 3
 	backoff := 5 * time.Second
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		out, err := r.git(context.Background(), "push")
-		if err == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		out, err := r.pushLocked(ctx)
+		cancel()
+		if err == nil || errors.Is(err, ErrNoRemote) {
 			return
 		}
 		if attempt == maxAttempts {
 			slog.Error("git push failed after retries", "attempts", maxAttempts, "err", err)
 			return
 		}
-		if strings.Contains(out, "[rejected]") {
+		if errors.Is(err, errBehindUpstream) || strings.Contains(out, "[rejected]") {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			_, reloaded, syncErr := r.syncLocked(ctx)
 			cancel()
 			if reloaded {
 				go r.runReloadHooks()
 			}
-			if syncErr != nil {
+			// ErrContentStale: the rebase went through, only loading the result
+			// failed (and was logged) — the commits can go out all the same
+			if syncErr != nil && !errors.Is(syncErr, ErrContentStale) {
 				slog.Error("git push rejected and the remote changes could not be merged", "err", syncErr)
 				return
 			}
 			continue
 		}
 		slog.Warn("git push transient failure, will retry", "attempt", attempt, "err", err, "next_delay", backoff)
-		time.Sleep(backoff)
+		select {
+		case <-time.After(backoff):
+		case <-r.done: // shutting down: the next start pushes it
+			return
+		}
 		backoff *= 3
 	}
 }
 
-// gitCommitAndPushPath stages exactly the given path (relative to dataDir),
-// commits it if there are changes, and pushes. Use this when you want a clean
+// gitCommitAndPushPath commits exactly the given path (relative to dataDir)
+// in the background if it changed, and pushes. Use this when you want a clean
 // commit scoped to a single file rather than gitCommitAndPush which adds -A.
 func (r *FileRepository) gitCommitAndPushPath(path, message string) {
-	if !r.gitEnabled {
-		return
-	}
-	go func() {
-		r.gitMu.Lock()
-		defer r.gitMu.Unlock()
-		cmd := exec.Command("git", "-C", r.dataDir, "add", "--", path)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			slog.Error("git add failed", "err", err, "output", string(out), "path", path)
-			return
-		}
-		cmd = exec.Command("git", "-C", r.dataDir, "diff", "--cached", "--quiet", "--", path)
-		if err := cmd.Run(); err == nil {
-			return
-		}
-		cmd = exec.Command("git", "-C", r.dataDir, "commit", "-m", message, "--", path)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			slog.Error("git commit failed", "err", err, "output", string(out))
-			return
-		}
-		r.gitPushWithRetry()
-	}()
+	r.commitAndPush(message, path)
 }
 
+// gitCommitAndPush commits every change in the data directory in the
+// background and pushes.
 func (r *FileRepository) gitCommitAndPush(message string) {
+	r.commitAndPush(message)
+}
+
+func (r *FileRepository) commitAndPush(message string, paths ...string) {
 	if !r.gitEnabled {
 		return
 	}
+	r.pendingMu.Lock()
+	defer r.pendingMu.Unlock()
+	if r.closing {
+		return // shutting down: the change stays in the working tree, the next start commits it
+	}
+	r.pending.Add(1)
 	go func() {
+		defer r.pending.Done()
 		r.gitMu.Lock()
 		defer r.gitMu.Unlock()
-		cmd := exec.Command("git", "-C", r.dataDir, "add", "-A")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			slog.Error("git add failed", "err", err, "output", string(out))
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		// the change stays in the working tree; the first commit after the
+		// checkout is sorted out picks it up
+		if err := r.checkWorktree(ctx); err != nil {
+			slog.Error("git commit skipped", "message", message, "err", err)
 			return
 		}
-
-		cmd = exec.Command("git", "-C", r.dataDir, "diff", "--cached", "--quiet")
-		if err := cmd.Run(); err == nil {
+		committed, err := r.commitLocked(ctx, message, paths...)
+		if err != nil {
+			slog.Error("git commit failed", "message", message, "err", err)
 			return
 		}
-
-		cmd = exec.Command("git", "-C", r.dataDir, "commit", "-m", message)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			slog.Error("git commit failed", "err", err, "output", string(out))
-			return
+		if committed {
+			r.gitPushWithRetry()
 		}
-
-		r.gitPushWithRetry()
 	}()
 }

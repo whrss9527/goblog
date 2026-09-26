@@ -86,10 +86,17 @@ body.admin {
     font-weight: 600;
 }
 
-.admin-account-warning {
+.admin-account-warning,
+.admin-content-problem {
     margin: 16px 0 0;
     font-size: 0.9rem;
     line-height: 1.7;
+}
+
+.admin-content-problem-detail {
+    margin-top: 4px;
+    font-size: 0.8rem;
+    overflow-wrap: anywhere;
 }
 
 /* ---------- drafts ---------- */

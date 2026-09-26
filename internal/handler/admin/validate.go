@@ -50,6 +50,10 @@ func checkLabel(name, what string) string {
 	return ""
 }
 
+// staleMessage explains filestore.ErrContentStale: changes pulled from the
+// remote could not be loaded, and saving waits until a fixed version arrives.
+const staleMessage = "内容仓库里有别处推送来的改动没能加载（多半是某个文件格式有误），在内容仓库里修好并推送之前，后台暂时不能保存"
+
 // saveErrorMessage turns a repository error into something the author can act on.
 func saveErrorMessage(err error) string {
 	switch {
@@ -57,8 +61,19 @@ func saveErrorMessage(err error) string {
 		return "这个地址已经被另一篇文章占用了，换一个吧"
 	case errors.Is(err, filestore.ErrInvalidSlug):
 		return "这个地址不能用作文件名，请换一个"
+	case errors.Is(err, filestore.ErrContentStale):
+		return staleMessage + "（内容仍在下面的编辑器里，也已在本机留了草稿）"
 	}
 	return "写入失败，请稍后重试（内容仍在下面的编辑器里，也已在本机留了草稿）"
+}
+
+// failureMessage is fallback, unless the change was refused because the
+// content repository is stale.
+func failureMessage(err error, fallback string) string {
+	if errors.Is(err, filestore.ErrContentStale) {
+		return staleMessage + "。"
+	}
+	return fallback
 }
 
 // adminZone is the time zone dates are shown in (the same one the site uses).

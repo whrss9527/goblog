@@ -69,6 +69,13 @@
                     写进配置文件的 <code>app.admin_email</code> / <code>app.admin_password_hash</code>，再把 <code>users.json</code> 从内容仓库删掉，这条提示就会消失。
                 </div>
                 {{end}}
+                {{with .content_problem}}
+                <div class="alert alert-danger admin-content-problem" role="alert">
+                    <strong>后台暂时不能保存：内容仓库里有别处推送来的改动没能加载。</strong>
+                    网站照常显示之前的内容。在内容仓库里修好出错的文件并推送，下一次同步（文章列表上的「同步内容仓库」，或者定时同步）加载成功后就会恢复。
+                    <div class="admin-content-problem-detail"><code>{{.}}</code></div>
+                </div>
+                {{end}}
 {{end}}
 
 {{define "admin-close"}}

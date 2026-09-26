@@ -63,8 +63,11 @@ func (r *FileRepository) GetTagIdsByName(name string) ([]string, error) {
 }
 
 func (r *FileRepository) AddTag(tag model.Tag) (int, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	unlock, lockErr := r.lockWrite()
+	if lockErr != nil {
+		return 0, lockErr
+	}
+	defer unlock()
 
 	now := timestamp()
 	tag.Id = r.nextTagId
@@ -84,8 +87,11 @@ func (r *FileRepository) IncrTagCount(_ string) error {
 }
 
 func (r *FileRepository) RecalcTagCounts() error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	unlock, lockErr := r.lockWrite()
+	if lockErr != nil {
+		return lockErr
+	}
+	defer unlock()
 
 	r.recountTags()
 	return r.saveJSON("tags.json", r.tags)
@@ -117,8 +123,11 @@ func (r *FileRepository) RenameTag(id int, name string) (int, error) {
 		return 0, ErrTagNameEmpty
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	unlock, lockErr := r.lockWrite()
+	if lockErr != nil {
+		return 0, lockErr
+	}
+	defer unlock()
 
 	index := r.tagIndex(id)
 	if index < 0 {
@@ -164,8 +173,11 @@ func (r *FileRepository) RenameTag(id int, name string) (int, error) {
 
 // DeleteTag removes a tag and takes it off every post that used it.
 func (r *FileRepository) DeleteTag(id int) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	unlock, lockErr := r.lockWrite()
+	if lockErr != nil {
+		return lockErr
+	}
+	defer unlock()
 
 	index := r.tagIndex(id)
 	if index < 0 {

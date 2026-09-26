@@ -56,6 +56,9 @@ func TestExampleConfigsLoad(t *testing.T) {
 		if !conf.App.GitHubStatsEnabled() || !conf.App.PWAEnabled() {
 			t.Errorf("%s: github_stats and pwa are on", file)
 		}
+		if conf.Server.ClientIPHeader != "" {
+			t.Errorf("%s: client_ip_header = %q, want empty (gin's default headers)", file, conf.Server.ClientIPHeader)
+		}
 		if conf.Server.TrustedProxies == nil || len(conf.Server.TrustedProxies) != 0 {
 			t.Errorf("%s: trusted_proxies = %#v, want an empty list", file, conf.Server.TrustedProxies)
 		}

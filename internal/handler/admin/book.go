@@ -78,7 +78,7 @@ func (h *BookHandler) BookSave(ctx *gin.Context) {
 	if err != nil {
 		slog.Error("save book failed", "err", err)
 		data := make(map[string]any)
-		data["msg"] = "保存失败，请重试"
+		data["msg"] = failureMessage(err, "保存失败，请重试")
 		view.AdminRender(data, ctx.Writer, "401", h.config.App)
 		return
 	}
@@ -90,7 +90,7 @@ func (h *BookHandler) BookDelete(ctx *gin.Context) {
 	if err := h.BookRepo.BookDelete(id); err != nil {
 		slog.Error("delete book failed", "err", err)
 		data := make(map[string]any)
-		data["msg"] = "删除失败，请重试"
+		data["msg"] = failureMessage(err, "删除失败，请重试")
 		view.AdminRender(data, ctx.Writer, "401", h.config.App)
 		return
 	}

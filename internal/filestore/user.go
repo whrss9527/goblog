@@ -19,8 +19,11 @@ func (r *FileRepository) GetUserByEmail(email string) (model.User, error) {
 }
 
 func (r *FileRepository) AddUser(user model.User) (uint, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	unlock, lockErr := r.lockWrite()
+	if lockErr != nil {
+		return 0, lockErr
+	}
+	defer unlock()
 
 	var maxId uint
 	for _, u := range r.users {
@@ -37,8 +40,11 @@ func (r *FileRepository) AddUser(user model.User) (uint, error) {
 }
 
 func (r *FileRepository) UpdateUser(user model.User) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	unlock, lockErr := r.lockWrite()
+	if lockErr != nil {
+		return lockErr
+	}
+	defer unlock()
 
 	for i, u := range r.users {
 		if u.Id == user.Id {
@@ -50,8 +56,11 @@ func (r *FileRepository) UpdateUser(user model.User) error {
 }
 
 func (r *FileRepository) DeleteUserByEmail(email string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	unlock, lockErr := r.lockWrite()
+	if lockErr != nil {
+		return lockErr
+	}
+	defer unlock()
 
 	for i, u := range r.users {
 		if u.Email == email {

@@ -27,6 +27,10 @@ func (r *FileRepository) SaveImage(name string, data []byte) error {
 	}
 	rel := imagesDir + "/" + name
 	target := filepath.Join(r.dataDir, filepath.FromSlash(rel))
+	// not while a sync rebases the working tree (images do not touch the
+	// content in memory, so they are accepted even while it is stale)
+	r.wmu.Lock()
+	defer r.wmu.Unlock()
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		return err
 	}

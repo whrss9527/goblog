@@ -229,8 +229,11 @@ func safeSlug(slug string) bool {
 }
 
 func (r *FileRepository) PostSave(post model.Post) (string, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	unlock, lockErr := r.lockWrite()
+	if lockErr != nil {
+		return "", lockErr
+	}
+	defer unlock()
 
 	existing, exists := r.postById[post.Id]
 	isNew := post.Id == "" || !exists // an id that is gone (deleted elsewhere) starts a new post
@@ -328,8 +331,11 @@ func (r *FileRepository) writePostFile(post *model.Post) error {
 }
 
 func (r *FileRepository) PostDelete(post model.Post) (string, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	unlock, lockErr := r.lockWrite()
+	if lockErr != nil {
+		return "", lockErr
+	}
+	defer unlock()
 
 	existing, ok := r.postById[post.Id]
 	if !ok {

@@ -100,7 +100,7 @@ func (h *TagHandler) TagSave(ctx *gin.Context) {
 		return
 	case err != nil:
 		slog.Error("rename tag failed", "id", id, "err", err)
-		h.renderForm(ctx, http.StatusUnprocessableEntity, tag, name, "保存失败，请稍后重试。")
+		h.renderForm(ctx, http.StatusUnprocessableEntity, tag, name, failureMessage(err, "保存失败，请稍后重试。"))
 		return
 	}
 	done := "renamed"
@@ -121,7 +121,7 @@ func (h *TagHandler) TagDelete(ctx *gin.Context) {
 		return
 	case err != nil:
 		slog.Error("delete tag failed", "id", id, "err", err)
-		h.renderList(ctx, http.StatusUnprocessableEntity, fmt.Sprintf("删除「%s」失败，请稍后重试。", strings.TrimSpace(tag.Name)))
+		h.renderList(ctx, http.StatusUnprocessableEntity, failureMessage(err, fmt.Sprintf("删除「%s」失败，请稍后重试。", strings.TrimSpace(tag.Name))))
 		return
 	}
 	http.Redirect(ctx.Writer, ctx.Request, "/admin/tags?done=deleted&name="+url.QueryEscape(strings.TrimSpace(tag.Name)), http.StatusFound)

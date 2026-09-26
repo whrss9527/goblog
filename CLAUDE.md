@@ -53,12 +53,21 @@ The Gin engine is initialized in `internal/pkg/gin/gin.go` (CORS, error handling
 
 - **Content storage**: All mutable data lives under `app.data_dir` on disk, organized as Markdown files with YAML frontmatter (see `internal/filestore/frontmatter.go`) plus JSON sidecar files for non-content entities. The directory is initialized by `git clone` of `app.git_repo` (uses `app.git_token` if private). Saves write the file then `git add && git commit && git push` if a git remote is configured.
 - **Content sync** (`internal/filestore/sync.go`): the author also pushes to the content repository directly. `Sync` =
-  fetch → commit everything pending (counters in their own commit) → `git rebase @{u}` (abort + `ErrSyncConflict` on
-  conflicts; never an autostash: a queued admin commit would come back as conflict markers) → `reloadContent` (scratch
-  repository, swapped in only when every file parsed; counters stay from memory) → `OnReload` hooks (feed, sitemap,
-  heatmap, nav, GitHub numbers) → push. Runs every `app.git_sync` (default 10m), on `RequestSync` (the signed webhook
-  `POST /api/hooks/git`), from `POST /admin/sync`, when a push is rejected, and (without reload) at startup. All git
-  commands go through `r.git` (`GIT_TERMINAL_PROMPT=0`); lock order is `gitMu` → `mu`, never the other way round.
+  fetch → commit everything pending (counters in their own commit) → `git rebase --onto @{u} <fork point>` (fork point
+  from the upstream's reflog, so commits a force push removed are not replayed; counter conflicts are resolved from
+  memory, anything else aborts with `ErrSyncConflict`; never an autostash: a queued admin commit would come back as
+  conflict markers) → `reloadContent` (scratch repository, swapped in only when every file parsed; counters stay from
+  memory) → `OnReload` hooks (feed, sitemap, heatmap, nav, GitHub numbers) → push. Every push goes through `pushLocked`:
+  only a fast-forward of the upstream as last fetched (`--force-with-lease`), otherwise sync first — a plain push would
+  fast-forward a remote the author reset and bring the removed commit back. Runs every `app.git_sync` (default 10m), on
+  `RequestSync` (the signed webhook `POST /api/hooks/git`), from `POST /admin/sync`, when a push is rejected, and
+  (without reload) at startup, which first aborts a rebase / removes an `index.lock` a killed git left behind.
+  `checkWorktree` refuses (`ErrWorktreeBusy`) while a merge or rebase is in progress, HEAD is detached or files are
+  unmerged. A reload that fails sets `sync.stale` (`ErrContentStale`): the site keeps the old content, every content
+  write refuses, the admin shows `ContentProblem()`, and each later sync retries because HEAD ≠ `sync.loadedHead`.
+  Locks: `gitMu` (git commands) → `wmu` (working tree: content writes, image saves, counter flushes, rebase, reload) →
+  `mu` (memory). Content writers take `lockWrite()`, never `mu` alone. All git commands go through `r.git`
+  (`GIT_TERMINAL_PROMPT=0`, SIGTERM on timeout so git removes its locks); `Close` waits for pending commits and pushes.
 - **Post ID**: Posts use UUID v4 (dashes removed) as primary key, stored as string. The `identity` field is a separate URL-friendly slug used in `/posts/:identity` routes.
 - **Config**: Viper-based YAML config with defaults embedded in `internal/config/config.go`. Environment configs in `conf/dev.yaml` and `conf/prod.yaml` (both gitignored; use `conf/{dev,prod}.yaml.example` as templates).
 - **Auth**: Admin routes use `gin-contrib/sessions` with signed cookie store via `middleware.AuthWithSession`. Session secret configured in `app.session_secret` (must be a real random value in production).
@@ -177,7 +186,9 @@ The Gin engine is initialized in `internal/pkg/gin/gin.go` (CORS, error handling
 ## Server
 
 Port configured via `server.http_port`, listen address via `server.host` (empty: every interface). `gin.RunGin` returns
-an error when it cannot listen and `main` exits non-zero. Health check at `GET /ping`.
+an error when it cannot listen and `main` exits non-zero. Health check at `GET /ping`. Visitor IPs (rate limits) are
+only read from `server.trusted_proxies` (default: this machine); `server.client_ip_header` pins the one header to read
+for proxies that only set `X-Real-IP`.
 
 ## Deployment
 
