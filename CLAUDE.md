@@ -83,7 +83,8 @@ The Gin engine is initialized in `internal/pkg/gin/gin.go` (CORS, error handling
   IPv4 ranges and `*.local`, so previews and development never reach the statistics.
 - **Projects**: `projects.json` (`filestore/project.go`, `repository.ProjectRepository`; written readable — no HTML
   escaping, trailing newline — and normalised on load) is shown at `/projects`, in the home sidebar and as "文中的项目"
-  under the post named by a project's `post`. `front.ProjectCatalog` joins projects with their linked posts and live
+  under the post named by a project's `post`, on the about page ("最近在做") and in `/api/search` (`projects`, shown
+  as their own group in the palette). `front.ProjectCatalog` joins projects with their linked posts and live
   GitHub numbers into `ProjectCard`s (`tpl/default/project-card.html`, parsed with every front page).
   `internal/pkg/github` is a read-only REST client (`ParseRepo`, `Repo`, `UserRepos`) plus `Stats`, an in-memory cache
   refreshed every 6 hours (ETag requests, pauses on rate limits, `Kick` after admin saves); `app.github_stats: false`

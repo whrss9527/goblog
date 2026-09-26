@@ -17,6 +17,13 @@
             <noscript><p class="noscript-tip">本页需要启用 JavaScript 才能渲染正文。</p></noscript>
             {{end}}
         </article>
+        {{with .about_projects}}
+        <section class="about-projects" aria-labelledby="about-projects-title">
+            <h2 class="section-title" id="about-projects-title">{{template "icon-package"}}最近在做
+                <a class="section-more" href="/projects">全部 {{$.projects_total}} 个项目{{template "icon-arrow-right"}}</a></h2>
+            <ul class="about-project-list">{{template "project-mini-list" .}}</ul>
+        </section>
+        {{end}}
         {{template "comments" .}}
     </div>
 </div>

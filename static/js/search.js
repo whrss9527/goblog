@@ -77,7 +77,7 @@
     }
 
     function itemHTML(item, i) {
-        var meta = [item.category, item.date].filter(Boolean).map(esc).join(' · ');
+        var meta = item.meta ? esc(item.meta) : [item.category, item.date].filter(Boolean).map(esc).join(' · ');
         return '<a class="palette-item" role="option" id="palette-opt-' + i + '" aria-selected="false" href="' + esc(item.url) + '">' +
             '<span class="palette-item-title">' + item.title_html + '</span>' +
             (item.snippet_html ? '<span class="palette-item-snippet">' + item.snippet_html + '</span>' : '') +
@@ -106,13 +106,29 @@
     }
 
     function renderResults(data) {
-        if (!data.items.length) {
+        var projects = data.projects || [];
+        if (!data.items.length && !projects.length) {
             results.innerHTML = '<div class="palette-empty">没有找到与「' + esc(data.query) + '」相关的内容<small>试试更短的关键词，或者用空格分隔多个词</small></div>';
             allLink.hidden = true;
             active = -1;
             return;
         }
-        results.innerHTML = data.items.map(itemHTML).join('');
+        if (!projects.length) {
+            results.innerHTML = data.items.map(itemHTML).join('');
+        } else {
+            // projects first (there are few and a name match is what was meant), then the posts
+            var n = 0;
+            var section = function (title, list) {
+                return list.length ? '<div class="palette-section"><div class="palette-section-title">' + title + '</div>' +
+                    list.map(function (item) { return itemHTML(item, n++); }).join('') + '</div>' : '';
+            };
+            results.innerHTML = section('项目', projects) + section('文章', data.items);
+        }
+        if (!data.items.length) {
+            allLink.hidden = true;
+            setActive(0, false);
+            return;
+        }
         allLink.hidden = false;
         allLink.href = '/?keyword=' + encodeURIComponent(data.query);
         allLink.textContent = data.total > data.items.length ? '查看全部 ' + data.total + ' 条结果' : '在列表中查看 ' + data.total + ' 条结果';

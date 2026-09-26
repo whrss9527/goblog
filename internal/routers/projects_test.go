@@ -358,3 +358,36 @@ func toStrings(v any) []string {
 	}
 	return out
 }
+
+func TestProjectsInSearchAndAbout(t *testing.T) {
+	off := false
+	h := newTestServer(t, withProjects(testProjects), func(c *config.Config) { c.App.GitHubStats = &off })
+
+	var result struct {
+		Items    []map[string]any `json:"items"`
+		Projects []map[string]any `json:"projects"`
+	}
+	rec := get(t, h, "/api/search?q=gitee")
+	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil || len(result.Projects) != 1 {
+		t.Fatalf("search for a project = %s", rec.Body.String())
+	}
+	if result.Projects[0]["url"] != "/projects#project-gitee-上的旧项目" || !strings.Contains(result.Projects[0]["title_html"].(string), "<mark>Gitee</mark>") {
+		t.Errorf("project hit = %v", result.Projects[0])
+	}
+	if len(result.Items) != 0 {
+		t.Errorf("no post mentions gitee: %v", result.Items)
+	}
+
+	about := get(t, h, "/pages/about").Body.String()
+	for _, want := range []string{"最近在做", "全部 5 个项目", `href="/projects#project-goblog"`} {
+		if !strings.Contains(about, want) {
+			t.Errorf("about page does not contain %q", want)
+		}
+	}
+	if strings.Contains(about, "Gitee 上的旧项目") {
+		t.Errorf("the about page leaves archived projects out")
+	}
+	if strings.Contains(get(t, h, "/pages/flow").Body.String(), "最近在做") {
+		t.Errorf("other pages do not list projects")
+	}
+}

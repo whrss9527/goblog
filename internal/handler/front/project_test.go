@@ -83,3 +83,32 @@ func TestCountProjectsAndHighlights(t *testing.T) {
 	}
 	assert.Equal(t, []string{"a", "c"}, names, "archived projects are skipped")
 }
+
+func TestSearchProjects(t *testing.T) {
+	cards := []ProjectCard{
+		{Project: model.Project{Name: "proxyswitch", Description: "切换系统代理", Repo: "https://github.com/whrss9527/proxyswitch"}, Anchor: "project-proxyswitch",
+			Stack: []TechLabel{{Name: "Go"}}, StatusLabel: "进行中"},
+		{Project: model.Project{Name: "ProxySwitch for Mac", Description: "菜单栏 <切换> 代理", Highlights: []string{"按 Wi-Fi 自动切换"}}, Anchor: "project-proxyswitch-for-mac",
+			Stack: []TechLabel{{Name: "Swift"}}, StatusLabel: "进行中"},
+		{Project: model.Project{Name: "goblog", Description: "博客程序"}, Anchor: "project-goblog", Stack: []TechLabel{{Name: "Go"}}, StatusLabel: "已完成"},
+	}
+
+	names := func(items []SearchItem) []string {
+		var out []string
+		for _, item := range items {
+			out = append(out, item.Title)
+		}
+		return out
+	}
+	assert.Equal(t, []string{"proxyswitch", "ProxySwitch for Mac"}, names(searchProjects(cards, "proxy", 3)))
+	assert.Equal(t, []string{"ProxySwitch for Mac"}, names(searchProjects(cards, "proxy wi-fi", 3)), "every term has to match")
+	assert.Equal(t, []string{"goblog", "proxyswitch"}, names(searchProjects(cards, "go", 3)), "a name match outranks a technology match")
+	assert.Len(t, searchProjects(cards, "o", 1), 1)
+	assert.Empty(t, searchProjects(cards, "   ", 3))
+	assert.Empty(t, searchProjects(cards, "rust", 3))
+
+	item := searchProjects(cards, "切换", 3)[0] // description and highlight beat description alone
+	assert.Equal(t, "/projects#project-proxyswitch-for-mac", item.URL)
+	assert.Equal(t, "菜单栏 &lt;<mark>切换</mark>&gt; 代理", item.SnippetHTML, "escaped, then highlighted")
+	assert.Equal(t, "项目 · 进行中 · Swift", item.Meta)
+}

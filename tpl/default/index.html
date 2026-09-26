@@ -71,22 +71,7 @@
     {{with $.sidebar_projects}}
     <section class="widget widget-projects">
         <h2 class="widget-title">项目 <a class="widget-more" href="/projects">全部 {{$.projects_total}} 个</a></h2>
-        <ul class="widget-project-list">
-            {{range .}}
-            <li>
-                <a href="/projects#{{.Anchor}}">
-                    <span class="wp-name">{{.Name}}</span>
-                    {{with .Description}}<span class="wp-desc">{{.}}</span>{{end}}
-                    {{if or .PrimaryTech.Name .HasStats}}
-                    <span class="wp-meta">
-                        {{with .PrimaryTech}}<span class="wp-lang"{{if .Color}} style="--lang: {{.Color}}"{{end}}>{{.Name}}</span>{{end}}
-                        {{if .HasStats}}<span class="meta-item">{{template "icon-star"}}{{humanCount .Stars}}</span>{{end}}
-                    </span>
-                    {{end}}
-                </a>
-            </li>
-            {{end}}
-        </ul>
+        <ul class="widget-project-list">{{template "project-mini-list" .}}</ul>
     </section>
     {{end}}
 

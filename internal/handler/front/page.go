@@ -10,8 +10,13 @@ import (
 
 type PageHandler struct {
 	PageRepo repository.PageRepository
+	// Projects adds "最近在做" to the about page (optional).
+	Projects *ProjectCatalog
 	config   *config.Config
 }
+
+// aboutProjects is how many projects the about page lists.
+const aboutProjects = 4
 
 func NewPageHandler(pageRepo repository.PageRepository, config *config.Config) *PageHandler {
 	return &PageHandler{
@@ -30,6 +35,10 @@ func (h *PageHandler) Page(ctx *gin.Context) {
 	data := make(map[string]any)
 	if pageId == "about" {
 		data["nav"] = "about"
+		if cards := h.Projects.Cards(); len(cards) > 0 {
+			data["about_projects"] = highlightProjects(cards, aboutProjects)
+			data["projects_total"] = len(cards)
+		}
 	}
 	data["title"] = page.Title
 	description := view.Excerpt(page.Content, 160)

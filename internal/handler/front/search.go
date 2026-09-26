@@ -23,6 +23,7 @@ const (
 	searchMaxTerms      = 5
 	searchLimit         = 20
 	searchHotLimit      = 6
+	searchProjectLimit  = 3
 	snippetBefore       = 28
 	snippetAfter        = 72
 )
@@ -32,6 +33,8 @@ type SearchHandler struct {
 	PostRepo     repository.PostRepository
 	CategoryRepo repository.CategoryRepository
 	TagRepo      repository.TagRepository
+	// Projects are searched as well (optional).
+	Projects *ProjectCatalog
 }
 
 func NewSearchHandler(postRepo repository.PostRepository, categoryRepo repository.CategoryRepository, tagRepo repository.TagRepository) *SearchHandler {
@@ -49,6 +52,8 @@ type SearchItem struct {
 	Tags        []string `json:"tags"`
 	SnippetHTML string   `json:"snippet_html"`
 	Views       int      `json:"views"`
+	// Meta replaces "category · date" for results that are not posts.
+	Meta string `json:"meta,omitempty"`
 }
 
 // Search handles GET /api/search?q=. An empty query returns the most viewed
@@ -80,7 +85,8 @@ func (h *SearchHandler) Search(ctx *gin.Context) {
 		return
 	}
 	items, total := searchPosts(posts, categoryNames, tagNames, query, searchLimit)
-	ctx.JSON(http.StatusOK, gin.H{"query": query, "total": total, "items": items})
+	projects := searchProjects(h.Projects.Cards(), query, searchProjectLimit)
+	ctx.JSON(http.StatusOK, gin.H{"query": query, "total": total, "items": items, "projects": projects})
 }
 
 // Random handles GET /random: redirect to a random published post, avoiding
@@ -136,22 +142,10 @@ func hotPosts(posts []*model.Post, categoryNames, tagNames map[int]string, limit
 // to match somewhere (AND); where it matches decides the score:
 // title 10, tag 6, description 4, category 3, body 1 per hit (max 5).
 func searchPosts(posts []*model.Post, categoryNames, tagNames map[int]string, query string, limit int) ([]SearchItem, int) {
-	terms := strings.Fields(query)
-	if len(terms) > searchMaxTerms {
-		terms = terms[:searchMaxTerms]
-	}
-	if len(terms) == 0 {
+	termRes, anyTerm := compileTerms(query)
+	if len(termRes) == 0 {
 		return []SearchItem{}, 0
 	}
-	termRes := make([]*regexp.Regexp, len(terms))
-	quoted := make([]string, len(terms))
-	for i, term := range terms {
-		quoted[i] = regexp.QuoteMeta(term)
-		termRes[i] = regexp.MustCompile("(?i)" + quoted[i])
-	}
-	// longest alternative first so "golang" wins over "go" when both are terms
-	sort.SliceStable(quoted, func(i, j int) bool { return len(quoted[i]) > len(quoted[j]) })
-	anyTerm := regexp.MustCompile("(?i)(" + strings.Join(quoted, "|") + ")")
 
 	type hit struct {
 		post  *model.Post
@@ -214,6 +208,104 @@ func searchPosts(posts []*model.Post, categoryNames, tagNames map[int]string, qu
 		items = append(items, newSearchItem(h.post, categoryNames, tagNames, anyTerm))
 	}
 	return items, total
+}
+
+// compileTerms turns a query into one literal, case-insensitive pattern per
+// term (at most searchMaxTerms) and one that matches any of them, for highlighting.
+func compileTerms(query string) ([]*regexp.Regexp, *regexp.Regexp) {
+	terms := strings.Fields(query)
+	if len(terms) > searchMaxTerms {
+		terms = terms[:searchMaxTerms]
+	}
+	if len(terms) == 0 {
+		return nil, nil
+	}
+	termRes := make([]*regexp.Regexp, len(terms))
+	quoted := make([]string, len(terms))
+	for i, term := range terms {
+		quoted[i] = regexp.QuoteMeta(term)
+		termRes[i] = regexp.MustCompile("(?i)" + quoted[i])
+	}
+	// longest alternative first so "golang" wins over "go" when both are terms
+	sort.SliceStable(quoted, func(i, j int) bool { return len(quoted[i]) > len(quoted[j]) })
+	return termRes, regexp.MustCompile("(?i)(" + strings.Join(quoted, "|") + ")")
+}
+
+// searchProjects finds projects the way searchPosts finds posts (every term
+// has to match): name 10, technology 6, description 4, highlights 3, source address 2.
+func searchProjects(cards []ProjectCard, query string, limit int) []SearchItem {
+	termRes, anyTerm := compileTerms(query)
+	if len(termRes) == 0 {
+		return []SearchItem{}
+	}
+	type hit struct {
+		card  ProjectCard
+		score int
+	}
+	var hits []hit
+	for _, card := range cards {
+		stack := make([]string, 0, len(card.Stack))
+		for _, t := range card.Stack {
+			stack = append(stack, t.Name)
+		}
+		tech := strings.Join(stack, " ")
+		highlights := strings.Join(card.Highlights, " ")
+		score := 0
+		for _, re := range termRes {
+			termScore := 0
+			for _, field := range []struct {
+				text   string
+				weight int
+			}{{card.Name, 10}, {tech, 6}, {card.Description, 4}, {highlights, 3}, {card.Repo, 2}} {
+				if re.MatchString(field.text) {
+					termScore += field.weight
+				}
+			}
+			if termScore == 0 {
+				score = 0
+				break
+			}
+			score += termScore
+		}
+		if score > 0 {
+			hits = append(hits, hit{card: card, score: score})
+		}
+	}
+	sort.SliceStable(hits, func(i, j int) bool { return hits[i].score > hits[j].score })
+	if len(hits) > limit {
+		hits = hits[:limit]
+	}
+	items := make([]SearchItem, 0, len(hits))
+	for _, h := range hits {
+		text := h.card.Description
+		if text == "" && len(h.card.Highlights) > 0 {
+			text = h.card.Highlights[0]
+		}
+		meta := []string{"项目", h.card.StatusLabel}
+		if len(h.card.Stack) > 0 {
+			meta = append(meta, h.card.Stack[0].Name)
+		}
+		items = append(items, SearchItem{
+			Title:       h.card.Name,
+			TitleHTML:   highlightHTML(h.card.Name, anyTerm),
+			URL:         "/projects#" + h.card.Anchor,
+			Category:    h.card.StatusLabel,
+			Tags:        []string{},
+			SnippetHTML: highlightHTML(shorten(text, snippetBefore+snippetAfter), anyTerm),
+			Meta:        strings.Join(meta, " · "),
+		})
+	}
+	return items
+}
+
+// shorten collapses the white space of plain text (not Markdown: nothing that
+// looks like a tag is removed) and cuts it to limit runes.
+func shorten(text string, limit int) string {
+	text = strings.Join(strings.Fields(text), " ")
+	if utf8.RuneCountInString(text) <= limit {
+		return text
+	}
+	return string([]rune(text)[:limit]) + "…"
 }
 
 func newSearchItem(p *model.Post, categoryNames, tagNames map[int]string, re *regexp.Regexp) SearchItem {

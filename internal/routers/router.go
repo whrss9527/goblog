@@ -101,6 +101,7 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 	frontProjectHandler := front.NewProjectHandler(projectCatalog, server.config)
 	projectHandler := admin.NewProjectHandler(repo, repo, githubClient, githubStats, sitemapHandler, server.config)
 	searchHandler := front.NewSearchHandler(repo, repo, repo)
+	searchHandler.Projects = projectCatalog
 	statsHandler := front.NewStatsHandler(repo, repo, repo, repo, server.config)
 	pwaHandler := front.NewPWAHandler(server.config)
 	if archive, err := repo.GetPostsArchive(); err == nil && len(archive) > 0 {
@@ -114,6 +115,7 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 	pageHandler := admin.NewPageHandler(repo, server.config)
 	pageHandler.Sitemap = sitemapHandler
 	frontPageHandler := front.NewPageHandler(repo, server.config)
+	frontPageHandler.Projects = projectCatalog
 	tagHandler := admin.NewTagHandler(repo, server.config)
 	frontTagHandler := front.NewTagHandler(repo, server.config)
 	frontTagHandler.Heatmap = heatmapHandler.JSON

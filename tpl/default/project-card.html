@@ -51,3 +51,21 @@
     {{end}}
 </article>
 {{end}}
+
+{{/* Compact project links (home sidebar, about page). Argument: a list of front.ProjectCard. */}}
+{{define "project-mini-list"}}
+{{range .}}
+<li>
+    <a href="/projects#{{.Anchor}}">
+        <span class="wp-name">{{.Name}}</span>
+        {{with .Description}}<span class="wp-desc">{{.}}</span>{{end}}
+        {{if or .PrimaryTech.Name .HasStats}}
+        <span class="wp-meta">
+            {{with .PrimaryTech}}<span class="wp-lang"{{if .Color}} style="--lang: {{.Color}}"{{end}}>{{.Name}}</span>{{end}}
+            {{if .HasStats}}<span class="meta-item">{{template "icon-star"}}{{humanCount .Stars}}</span>{{end}}
+        </span>
+        {{end}}
+    </a>
+</li>
+{{end}}
+{{end}}
