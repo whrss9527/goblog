@@ -7,7 +7,7 @@
      so articles that were read once stay readable without a connection. When
      the network fails, or takes too long, the kept copy is used; an address
      that was never visited gets the offline page.
-   - /static and /covers: fingerprinted URLs (?v=) never change and come from
+   - /static, /covers and /images: fingerprinted URLs (?v=) and uploaded images never change and come from
      the cache; other files are served from the cache and refreshed in the
      background.
    - /admin (and its assets), /api, /random, feeds, non-GET and cross-origin
@@ -110,7 +110,8 @@
                 });
             };
             if (!hit) { return refresh(); }
-            if (!url.searchParams.has('v')) {
+            // fingerprinted files and uploaded images never change: no need to ask again
+            if (!url.searchParams.has('v') && !/^\/images\//.test(url.pathname)) {
                 event.waitUntil(refresh().catch(function () { /* offline: the cached copy is all we have */ }));
             }
             return hit;
@@ -147,7 +148,7 @@
 
         if (request.mode === 'navigate') {
             event.respondWith(page(event, url));
-        } else if ((/^\/(static|covers)\//.test(url.pathname) && !/^\/static\/admin\//.test(url.pathname)) || url.pathname === '/favicon.ico') {
+        } else if ((/^\/(static|covers|images)\//.test(url.pathname) && !/^\/static\/admin\//.test(url.pathname)) || url.pathname === '/favicon.ico') {
             event.respondWith(asset(event, url));
         }
     });

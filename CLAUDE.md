@@ -158,6 +158,14 @@ The Gin engine is initialized in `internal/pkg/gin/gin.go` (CORS, error handling
   must be published, one project per repository); `GET /admin/projects/github?repo=` (import) and
   `/admin/projects/github/suggestions` (the recent public repositories of `app.github_user`, else the owner of `git_repo`)
   return JSON for `goblog-admin.js`, which only fills fields that are still empty.
+- **Image upload** (`admin/upload.go`, `POST /admin/uploads`, own route group so `middleware.LimitBody` runs before the
+  CSRF check parses the form): content-sniffed PNG / JPEG / GIF / WebP only (never SVG), named
+  `YYYY/MM/<unix ms>.ext`, stored via `filestore.SaveImage` in `<data_dir>/images` (served at `/images/`, immutable
+  cache, cached by the service worker) or put into S3-compatible storage (`internal/pkg/s3`, SigV4 verified against
+  the AWS documentation vectors) when `app.upload` has all S3 fields. The answer carries the next CSRF token — every
+  POST rotates it — and `goblog-editor.js` uploads one file at a time. It listens for paste / drop on the CodeMirror
+  wrapper (capture phase): editor.md's CodeMirror 5.0 never reports pastes to `cm.on('paste')`. JPEGs are redrawn on a
+  canvas (≤ 2000px, no EXIF) before upload.
 - The editor keeps a local backup in `localStorage` (`goblog:draft:<kind>:<id|new>`); a successful save redirects to
   the list with `?saved=<slug>`, which is what clears the draft.
 

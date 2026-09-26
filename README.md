@@ -7,6 +7,7 @@
 - **文件存储**：博客内容（文章、分类、标签、页面）以 Markdown 文件形式存放在独立的 Git 仓库中（`blog-data`），运行时按需克隆/拉取，无需数据库。
   在电脑上写好文章 `git push` 到内容仓库，博客会自动同步上线（默认每 10 分钟；配置 GitHub Webhook 后几秒内），不用重启。
 - **管理后台**：登录后可对文章、页面、项目、分类、标签、阅读清单做增删改查；admin 操作通过 session cookie 鉴权。
+  编辑器里可以直接粘贴截图、拖入图片或从相册选图上传（存进内容仓库，或者 R2 / S3），照片会先缩小并去掉 EXIF 定位信息。
   手机上同样可用；编辑器会在浏览器本地自动保留草稿（关页、登录过期、保存失败都不丢稿），保存前校验文章地址，不会覆盖别的文章。
   标签可以改名、合并（改成另一个标签的名字）、删除，文章里的引用自动跟着变；还有文章在用的分类不允许删除。
 - **公开前台**：首页、文章页、标签页、分类页、项目、阅读清单、关于页、站内搜索（基于内存索引）。
@@ -128,9 +129,9 @@ systemctl status goblog
 cd /opt/goblog && git pull && make build && systemctl restart goblog
 ```
 
-## 从 1.0 升级到 1.13
+## 从 1.0 升级到 1.15
 
-1.1 ～ 1.13 没有破坏性变更：配置文件不改也能启动，内容仓库的文件格式保持不变。照常发版即可：
+1.1 ～ 1.15 没有破坏性变更：配置文件不改也能启动，内容仓库的文件格式保持不变。照常发版即可：
 
 ```bash
 cd /opt/goblog && git pull && make build && systemctl restart goblog
@@ -174,6 +175,8 @@ app:
   github_token: ""             # 可选：GitHub API 每小时 60 次 → 5000 次，任何 token 都行，不需要任何权限
   git_sync: "10m"              # 可选：多久和内容仓库的远程同步一次（拉取别处推送的文章），"off" 关闭定时同步
   git_webhook_secret: ""       # 可选：配置 GitHub Webhook 后，推送内容仓库几秒内就同步（见下文「内容仓库同步」）
+  upload:                      # 可选：编辑器上传的图片放哪儿（见下文「图片上传」），不配置 = 内容仓库的 images/
+    public_url: ""             # 例如 https://pic.example.com；和下面四项一起填才会传到 R2 / S3
 
 server:
   host: ""                     # 可选：监听地址，留空 = 所有网卡；nginx / cloudflared 之后建议 "127.0.0.1"
@@ -209,6 +212,29 @@ app:
 
 两项都配置后只认这个账号，`users.json` 不再生效；随后可以把 `users.json` 从内容仓库删掉。
 旧哈希仍然留在 Git 历史里，所以**一定要换一个新密码**，不要沿用旧的。
+
+### 图片上传
+
+写文章 / 页面时，在编辑器里**粘贴截图、把图片拖进来**，或者点工具栏的上传按钮（手机上会打开相册 / 相机），图片上传后自动插入
+`![名字](地址)`。支持 PNG、JPEG、GIF、WebP（按文件内容识别，不看扩展名；不接受 SVG），单张默认最大 10 MB（`upload.max_mb`）。
+JPEG 照片在浏览器里先缩到长边 2000 像素再上传，重新编码后**不带 EXIF**（拍摄设备、GPS 位置）。文件名按上传时间生成：`2026/09/1758854400123.png`。
+
+- **默认存进内容仓库**的 `images/` 目录，随文章一起提交推送，由博客自己以 `/images/...` 提供（长期缓存，读过的文章离线也能看到图片）。
+- **想放到图床**（比如 Cloudflare R2），配置 `upload`：
+
+  ```yaml
+  app:
+    upload:
+      s3_endpoint: "https://<账号 ID>.r2.cloudflarestorage.com"   # AWS S3 写 https://s3.<region>.amazonaws.com
+      s3_region: "auto"            # R2 固定 auto
+      s3_bucket: "blog-images"
+      s3_access_key: "..."         # R2：管理 R2 API 令牌 → 对象读和写
+      s3_secret_key: "..."
+      public_url: "https://pic.example.com"   # 桶绑定的公开域名
+      prefix: ""                   # 可选，比如 "blog/"
+  ```
+
+  五项齐全才会启用；图片以 `Cache-Control: public, max-age=31536000, immutable` 上传。签名是 goblog 自己实现的 AWS SigV4（用 AWS 文档里的测试向量校验过），不依赖 SDK。
 
 ### 内容仓库同步
 

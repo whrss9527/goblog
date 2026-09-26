@@ -70,6 +70,26 @@ type (
 		// GitWebhookSecret enables POST /api/hooks/git: a GitHub webhook signed
 		// with this secret makes the server sync right after every push.
 		GitWebhookSecret string `mapstructure:"git_webhook_secret"`
+		// Upload says where images uploaded in the editor go (optional).
+		Upload *UploadConfig `mapstructure:"upload"`
+	}
+	// UploadConfig: without S3 settings images are stored in the images/
+	// folder of the content repository and served from /images/.
+	UploadConfig struct {
+		// S3Endpoint, S3Bucket, S3AccessKey and S3SecretKey send uploads to
+		// S3-compatible storage instead, e.g. Cloudflare R2
+		// (https://<account id>.r2.cloudflarestorage.com, region "auto").
+		S3Endpoint  string `mapstructure:"s3_endpoint"`
+		S3Region    string `mapstructure:"s3_region"`
+		S3Bucket    string `mapstructure:"s3_bucket"`
+		S3AccessKey string `mapstructure:"s3_access_key"`
+		S3SecretKey string `mapstructure:"s3_secret_key"`
+		// PublicURL is where the bucket is served, e.g. https://pic.example.com.
+		PublicURL string `mapstructure:"public_url"`
+		// Prefix is put in front of every object key, e.g. "blog/".
+		Prefix string `mapstructure:"prefix"`
+		// MaxMB limits the size of one image (default 10).
+		MaxMB int `mapstructure:"max_mb"`
 	}
 	ServerConfig struct {
 		// Host is the address to listen on. Empty (the default) means every interface; "127.0.0.1" keeps
@@ -117,6 +137,19 @@ func (c *AppConfig) AccountInContentRepo() bool {
 // PWAEnabled reports whether the site should offer its service worker.
 func (c *AppConfig) PWAEnabled() bool {
 	return c == nil || c.PWA == nil || *c.PWA
+}
+
+// S3 reports whether uploads go to S3-compatible storage.
+func (u *UploadConfig) S3() bool {
+	return u != nil && u.S3Endpoint != "" && u.S3Bucket != "" && u.S3AccessKey != "" && u.S3SecretKey != "" && u.PublicURL != ""
+}
+
+// MaxBytes is the largest image the editor may upload.
+func (u *UploadConfig) MaxBytes() int64 {
+	if u == nil || u.MaxMB <= 0 {
+		return 10 << 20
+	}
+	return int64(u.MaxMB) << 20
 }
 
 // DefaultGitSync is how often the content repository is synced when git_sync is not set.

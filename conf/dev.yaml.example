@@ -40,6 +40,17 @@ app:
   # GitHub Webhook 的密钥（openssl rand -hex 20）：内容仓库 Settings → Webhooks，Payload URL 填 https://你的域名/api/hooks/git，
   # Content type 选 application/json，Secret 填这个值，只勾 push 事件。推送后几秒内同步；留空则不开放这个接口
   git_webhook_secret: ""
+  # 编辑器里粘贴 / 拖入 / 选择的图片存到哪儿。不配置：内容仓库的 images/ 目录（随文章提交，站点以 /images/... 提供）。
+  # 五项（s3_endpoint、s3_bucket、s3_access_key、s3_secret_key、public_url）都填上则直接传到 R2 / S3 兼容存储
+  upload:
+    s3_endpoint: ""        # R2：https://<账号 ID>.r2.cloudflarestorage.com
+    s3_region: "auto"      # R2 固定 auto；AWS 写桶所在区域
+    s3_bucket: ""
+    s3_access_key: ""
+    s3_secret_key: ""      # 不要提交真实值
+    public_url: ""         # 桶的公开访问域名，例如 https://pic.example.com
+    prefix: ""             # 可选：对象名前缀，例如 "blog/"
+    max_mb: 10             # 单张图片上限
 
 server:
   # 监听地址。留空 = 所有网卡；前面有 nginx / cloudflared（Cloudflare Tunnel）时建议写 "127.0.0.1"，

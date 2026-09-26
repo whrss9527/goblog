@@ -372,15 +372,21 @@ func (r *FileRepository) saveJSON(filename string, v any) error {
 	return r.writeFileAtomic(filename, data)
 }
 
-// writeFileAtomic replaces filename inside dataDir with data (temp file, fsync, rename).
+// writeFileAtomic replaces filename (relative to dataDir, may name a sub
+// directory) with data: temp file next to it, fsync, rename.
 func (r *FileRepository) writeFileAtomic(filename string, data []byte) error {
 	target := filepath.Join(r.dataDir, filename)
-	tmp, err := os.CreateTemp(r.dataDir, filename+".tmp-*")
+	tmp, err := os.CreateTemp(filepath.Dir(target), filepath.Base(target)+".tmp-*")
 	if err != nil {
 		return err
 	}
 	tmpName := tmp.Name()
 	defer os.Remove(tmpName) // no-op if rename succeeded
+	// CreateTemp makes the file private (0600); content files are ordinary 0644 files
+	if err := tmp.Chmod(0o644); err != nil {
+		tmp.Close()
+		return err
+	}
 	if _, err := tmp.Write(data); err != nil {
 		tmp.Close()
 		return err

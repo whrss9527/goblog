@@ -375,6 +375,10 @@ body.admin-editor {
     color: #8fe3b4;
 }
 
+.editor-status[data-tone="error"] {
+    color: #ffb3b3;
+}
+
 .editor-bar .btn {
     min-height: 36px;
     padding-left: 14px;

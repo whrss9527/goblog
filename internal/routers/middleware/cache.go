@@ -37,3 +37,19 @@ func StaticCache(prefixes ...string) gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// ImmutableCache marks responses below the given prefixes as never changing:
+// uploaded images get a new name every time, so a copy can be kept for good.
+func ImmutableCache(prefixes ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.Method == "GET" || c.Request.Method == "HEAD" {
+			for _, prefix := range prefixes {
+				if strings.HasPrefix(c.Request.URL.Path, prefix) {
+					c.Header("Cache-Control", cacheImmutable)
+					break
+				}
+			}
+		}
+		c.Next()
+	}
+}

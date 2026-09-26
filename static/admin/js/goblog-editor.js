@@ -6,7 +6,9 @@
      expired login or a failed save never costs the text; offers to restore it
      (not to be confused with drafts, which are unpublished posts on the server)
    - warns before leaving with unsaved changes, saves with Ctrl/Cmd+S
-   - live word count, description length, slug check, tag suggestions */
+   - live word count, description length, slug check, tag suggestions
+   - images: paste a screenshot, drop files or use the toolbar's upload button;
+     photos are downscaled (and lose their EXIF data) before they are sent */
 (function () {
     'use strict';
 
@@ -209,6 +211,108 @@
         render();
     }
 
+    /* ---------- image upload: paste, drop or pick ---------- */
+    var uploadQueue = Promise.resolve();
+    var uploadSeq = 0;
+    var picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = 'image/png,image/jpeg,image/gif,image/webp';
+    picker.multiple = true;
+    picker.hidden = true;
+    form.appendChild(picker); // no name: never submitted with the form
+    picker.addEventListener('change', function () {
+        uploadFiles(Array.prototype.slice.call(picker.files || []));
+        picker.value = '';
+    });
+
+    function csrfToken(value) {
+        var input = form.querySelector('input[name="_csrf"]');
+        if (value) { input.value = value; }
+        return input.value;
+    }
+
+    // Photos are re-encoded before they leave the browser: at most 2000px on the long side and,
+    // as a side effect of drawing them on a canvas, without EXIF data (camera, GPS position…).
+    function prepare(file) {
+        if (file.type !== 'image/jpeg' || !window.createImageBitmap) { return Promise.resolve(file); }
+        return createImageBitmap(file, {imageOrientation: 'from-image'}).then(function (bitmap) {
+            var scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
+            var canvas = document.createElement('canvas');
+            canvas.width = Math.round(bitmap.width * scale);
+            canvas.height = Math.round(bitmap.height * scale);
+            canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+            return new Promise(function (resolve) {
+                canvas.toBlob(function (blob) { resolve(blob || file); }, 'image/jpeg', 0.86);
+            });
+        }).catch(function () { return file; });
+    }
+
+    function replaceText(find, text) {
+        var cm = editor.cm;
+        var at = cm.getValue().indexOf(find);
+        if (at !== -1) { cm.replaceRange(text, cm.posFromIndex(at), cm.posFromIndex(at + find.length)); }
+    }
+
+    function uploadOne(file) {
+        var id = ++uploadSeq;
+        var alt = (file.name || '').replace(/\.[a-z0-9]+$/i, '').replace(/[\[\]]/g, '') || '图片';
+        var placeholder = '![上传中 ' + id + '…]()';
+        editor.cm.replaceSelection(placeholder + '\n');
+        setStatus('正在上传图片…', '');
+        return prepare(file).then(function (blob) {
+            var body = new FormData();
+            body.append('file', blob, file.name || 'image');
+            return fetch('/admin/uploads', {
+                method: 'POST', body: body, credentials: 'same-origin',
+                headers: {'X-CSRF-Token': csrfToken(), Accept: 'application/json'}
+            });
+        }).then(function (res) {
+            if (res.redirected) { throw new Error('登录已过期：在新标签页登录后再上传（文字已在本机备份）'); }
+            return res.json().catch(function () { throw new Error('上传失败（HTTP ' + res.status + '）'); });
+        }).then(function (data) {
+            if (data.csrf) { csrfToken(data.csrf); } // every POST rotates the token
+            if (!data.url) { throw new Error(data.error || '上传失败'); }
+            replaceText(placeholder, '![' + alt + '](' + data.url + ')');
+            setStatus('图片已上传', 'ok');
+        }).catch(function (err) {
+            replaceText(placeholder + '\n', '');
+            setStatus((err && err.message) || '上传失败', 'error');
+        });
+    }
+
+    function uploadFiles(files) {
+        files.filter(function (f) { return /^image\//.test(f.type); }).forEach(function (file) {
+            // one after another: each upload needs the CSRF token the previous one returned
+            uploadQueue = uploadQueue.then(function () { return uploadOne(file); });
+        });
+    }
+
+    // Listened for on the editor's wrapper, before CodeMirror sees the event: the CodeMirror bundled with
+    // editor.md (5.0) handles pastes itself and never tells cm.on('paste') listeners about them.
+    function watchImages(cm) {
+        var wrapper = cm.getWrapperElement();
+        function images(list) {
+            return Array.prototype.filter.call(list || [], function (f) { return f && /^image\//.test(f.type); });
+        }
+        wrapper.addEventListener('paste', function (e) {
+            var items = (e.clipboardData && e.clipboardData.items) || [];
+            var files = images(Array.prototype.map.call(items, function (item) { return item.kind === 'file' ? item.getAsFile() : null; }));
+            if (!files.length) { return; } // text: CodeMirror's business
+            e.preventDefault();
+            e.stopPropagation();
+            uploadFiles(files);
+        }, true);
+        wrapper.addEventListener('drop', function (e) {
+            var files = images(e.dataTransfer && e.dataTransfer.files);
+            if (!files.length) { return; }
+            e.preventDefault();
+            e.stopPropagation();
+            cm.focus();
+            cm.setCursor(cm.coordsChar({left: e.clientX, top: e.clientY}));
+            uploadFiles(files);
+        }, true);
+    }
+
     /* ---------- editor.md ---------- */
     function editorHeight() {
         var bar = document.querySelector('.editor-bar');
@@ -218,8 +322,17 @@
     var COMPACT_TOOLBAR = ['undo', 'redo', '|', 'bold', 'italic', 'quote', '|', 'h2', 'h3', '|', 'list-ul', 'list-ol', '|',
         'link', 'image', 'code', 'code-block', 'table', '|', 'preview', 'fullscreen'];
 
+    // the toolbar with an upload button right after editor.md's own "image" (insert by address)
+    function toolbar(small) {
+        var icons = (small ? COMPACT_TOOLBAR : window.editormd.toolbarModes.full).slice();
+        var at = icons.indexOf('image');
+        icons.splice(at === -1 ? icons.length : at + 1, 0, 'upload');
+        return icons;
+    }
+
     function createEditor() {
         var small = narrow.matches;
+        var icons = toolbar(small);
         var options = {
             width: '100%',
             height: editorHeight(),
@@ -233,6 +346,10 @@
             toolbarAutoFixed: false,
             placeholder: '用 Markdown 写点什么……',
             htmlDecode: 'style,script,iframe|on*',
+            toolbarIcons: function () { return icons; },
+            toolbarIconsClass: {upload: 'fa-cloud-upload'},
+            toolbarHandlers: {upload: function () { picker.click(); }},
+            lang: {toolbar: {upload: '上传图片（也可以直接粘贴截图，或把图片拖进来）'}},
             onload: function () {
                 ready = true;
                 if (rejected) {
@@ -243,10 +360,10 @@
                     offerDraft();
                 }
                 this.cm.on('change', touch);
+                watchImages(this.cm);
                 updateCount();
             }
         };
-        if (small) { options.toolbarIcons = function () { return COMPACT_TOOLBAR; }; }
         return window.editormd('editor-md', options);
     }
 

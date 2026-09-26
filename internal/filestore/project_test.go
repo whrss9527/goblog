@@ -184,3 +184,19 @@ func TestProjectWriteFailureKeepsMemory(t *testing.T) {
 	assert.Equal(t, "kept", projects[0].Name)
 	assert.Equal(t, 2, r.nextProjectId, "a failed add does not use up an id")
 }
+
+func TestAtomicWritesAreOrdinaryFiles(t *testing.T) {
+	r := setupTestRepo(t)
+	_, err := r.ProjectSave(model.Project{Name: "x"})
+	require.NoError(t, err)
+	require.NoError(t, r.SaveImage("2026/09/1758854400123.png", []byte("png")))
+	for _, name := range []string{projectsFile, "images/2026/09/1758854400123.png"} {
+		info, err := os.Stat(filepath.Join(r.dataDir, name))
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o644), info.Mode().Perm(), name)
+	}
+	assert.ErrorIs(t, r.SaveImage("2026/09/1758854400123.png", []byte("other")), ErrImageExists, "images are never replaced")
+	for _, bad := range []string{"../x.png", "2026/09/a.svg", "2026/9/1.png", "x.png", "2026/09/../../posts/x.png"} {
+		assert.Error(t, r.SaveImage(bad, []byte("x")), bad)
+	}
+}

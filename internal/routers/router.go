@@ -148,12 +148,19 @@ func (server *Server) InitRouter(router *gin.Engine) (cleanup func()) {
 	searchLimiter := middleware.NewRateLimiter(90, time.Minute)
 	likeLimiter := middleware.NewRateLimiter(20, time.Minute)
 
-	router.Use(middleware.StaticCache("/static/", "/covers/", "/favicon.ico"))
+	router.Use(middleware.StaticCache("/static/", "/covers/", "/favicon.ico"), middleware.ImmutableCache("/images/"))
 	router.StaticFS("/static/", http.Dir("static"))
+	// images uploaded in the editor (unless they go to S3-compatible storage)
+	router.Static("/images", repo.ImagesDir())
 	// Book covers live in the content repo (data_dir/covers) and are referenced
 	// as /covers/<file> from books.json.
 	router.Static("/covers", filepath.Join(server.config.App.DataDir, "covers"))
 	router.NoRoute(front.NotFound(server.config.App))
+
+	uploadHandler := admin.NewUploadHandler(repo, server.config)
+	// its own group: the body limit has to come before the CSRF check reads the form
+	uploads := router.Group("admin", middleware.LimitBody(uploadHandler.MaxBytes()+1<<20), middleware.AuthWithSession, middleware.CSRFProtect)
+	uploads.POST("/uploads", uploadHandler.Upload)
 
 	manage := router.Group("admin")
 	{
