@@ -1,0 +1,16 @@
+node_modules
+.next
+out
+build
+.data
+/data
+.env
+.env*.local
+*.tsbuildinfo
+next-env.d.ts
+.vercel
+.DS_Store
+npm-debug.log*
+
+# Template with no secrets, meant to be committed.
+!.env.example

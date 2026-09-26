@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="1200" height="900"><defs>
+<radialGradient id="vig" cx="50%" cy="50%" r="75%"><stop offset="0.6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#2a1a10" stop-opacity="0.35"/></radialGradient>
+<filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 0.5 0 0 0 0 0.4 0 0 0 0 0.3 0 0 0 0.18 0"/></filter></defs>
+<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b7bfd0"/><stop offset="1" stop-color="#8d97ad"/></linearGradient></defs>
+<rect width="1200" height="900" fill="url(#bg)"/>
+<rect x="96" y="108" width="600" height="378" rx="30" fill="#dfe6f0"/>
+<rect x="120" y="135" width="552" height="324" rx="24" fill="#a6c1dc"/>
+<path d="M120 360 q120 -40 240 0 t312 0 V459 H120z" fill="#7d9b7a"/>
+<path d="M0 558 H1200 V900 H0z" fill="#6b7489"/>
+<circle cx="744" cy="540" r="70" fill="#3b3342"/><path d="M624 900 q10 -252.00000000000003 120 -270 q120 0 120 270z" fill="#4c4658"/>
+<circle cx="960" cy="468" r="72" fill="#2f2a36"/><path d="M816.0000000000001 900 q10 -324 144 -342 q144 0 144 342z" fill="#3d3847"/>
+<text x="660" y="360" font-family="Georgia" font-size="46" fill="#fff" opacity="0.8">z z z</text><rect width="1200" height="900" fill="url(#vig)"/><rect width="1200" height="900" filter="url(#grain)" opacity="0.55"/></svg>

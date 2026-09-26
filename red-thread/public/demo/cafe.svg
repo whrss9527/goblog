@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="1200" height="900"><defs>
+<radialGradient id="vig" cx="50%" cy="50%" r="75%"><stop offset="0.6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#2a1a10" stop-opacity="0.35"/></radialGradient>
+<filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 0.5 0 0 0 0 0.4 0 0 0 0 0.3 0 0 0 0.18 0"/></filter></defs>
+<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e9cfb2"/><stop offset="1" stop-color="#c79a73"/></linearGradient><radialGradient id="lamp"><stop offset="0" stop-color="#fff3d6"/><stop offset="1" stop-color="#e9cfb2" stop-opacity="0"/></radialGradient></defs>
+<rect width="1200" height="900" fill="url(#bg)"/>
+<circle cx="600" cy="135" r="360" fill="url(#lamp)"/>
+<rect y="540" width="1200" height="360" fill="#8c5d3b"/>
+<ellipse cx="408.00000000000006" cy="630" rx="120" ry="30" fill="#f7efe4"/>
+<path d="M338.00000000000006 468 h140 l-14 162 h-112z" fill="#fbf6ee"/>
+<path d="M476.00000000000006 504.00000000000006 q46 6 0 60" stroke="#fbf6ee" stroke-width="14" fill="none"/>
+<ellipse cx="408.00000000000006" cy="468" rx="70" ry="16" fill="#9b6a45"/>
+<path transform="translate(408.00000000000006 463.5) scale(1.6)" d="M0 12S-14 3-14-5a7 7 0 0 1 14-3 7 7 0 0 1 14 3C14 3 0 12 0 12z" fill="#f3e2cc"/>
+<path d="M392.00000000000006 396 q-12 -26 6 -50 M422.00000000000006 396 q-12 -26 6 -50" stroke="#fff" stroke-width="4" fill="none" opacity="0.5"/>
+<ellipse cx="792" cy="630" rx="120" ry="30" fill="#f7efe4"/>
+<path d="M722 468 h140 l-14 162 h-112z" fill="#fbf6ee"/>
+<path d="M860 504.00000000000006 q46 6 0 60" stroke="#fbf6ee" stroke-width="14" fill="none"/>
+<ellipse cx="792" cy="468" rx="70" ry="16" fill="#9b6a45"/>
+<path transform="translate(792 463.5) scale(1.6)" d="M0 12S-14 3-14-5a7 7 0 0 1 14-3 7 7 0 0 1 14 3C14 3 0 12 0 12z" fill="#f3e2cc"/>
+<path d="M776 396 q-12 -26 6 -50 M806 396 q-12 -26 6 -50" stroke="#fff" stroke-width="4" fill="none" opacity="0.4"/><rect width="1200" height="900" fill="url(#vig)"/><rect width="1200" height="900" filter="url(#grain)" opacity="0.55"/></svg>

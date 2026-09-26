@@ -1,0 +1,22 @@
+# 一台服务器就能跑：数据库用内置 PGlite，照片存本地磁盘，都在数据卷 red-thread-data 里。
+# 想把照片放到 OSS / COS / R2，在 .env 里填对应的存储变量即可。
+#
+#   cp .env.example .env   # 至少填 AUTH_SECRET、ADMIN_EMAIL、ADMIN_PASSWORD
+#   docker compose up -d --build
+#
+# 前面再放一个 Nginx / Caddy 做 HTTPS 反向代理。
+services:
+  red-thread:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_TIMEZONE: ${NEXT_PUBLIC_TIMEZONE:-Asia/Shanghai}
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - '3000:3000'
+    volumes:
+      - red-thread-data:/app/.data
+
+volumes:
+  red-thread-data:

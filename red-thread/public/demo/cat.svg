@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200"><defs>
+<radialGradient id="vig" cx="50%" cy="50%" r="75%"><stop offset="0.6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#2a1a10" stop-opacity="0.35"/></radialGradient>
+<filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 0.5 0 0 0 0 0.4 0 0 0 0 0.3 0 0 0 0.18 0"/></filter></defs>
+<defs><linearGradient id="win" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3d6a6"/><stop offset="1" stop-color="#e9a88a"/></linearGradient></defs>
+<rect width="900" height="1200" fill="#8a7a6a"/>
+<rect x="90" y="96" width="720" height="696" fill="url(#win)"/>
+<path d="M450 96 V792 M90 444 H810" stroke="#5b4c40" stroke-width="12"/>
+<rect y="792" width="900" height="60" fill="#5b4c40"/>
+<g fill="#2e2622" transform="translate(450 792)">
+<ellipse cx="0" cy="-70" rx="110" ry="80"/><circle cx="-30" cy="-190" r="70"/>
+<path d="M-90 -230 l10 -70 40 45z M20 -230 l10 -70 -50 45z"/>
+<path d="M100 -40 q120 -10 90 -140" stroke="#2e2622" stroke-width="26" fill="none" stroke-linecap="round"/>
+</g><rect width="900" height="1200" fill="url(#vig)"/><rect width="900" height="1200" filter="url(#grain)" opacity="0.55"/></svg>
